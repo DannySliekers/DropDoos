@@ -19,11 +19,13 @@ PacketManager packetManager = new PacketManager();
 while (true)
 {
     // Receive message.
-    var buffer = new byte[1_024];
+    var buffer = new byte[7_000_000];
     var received = await handler.ReceiveAsync(buffer, SocketFlags.None);
     var packet = Packet.ToPacket(buffer);
     var response = packetManager.HandlePacket(packet);
 
-    await handler.SendAsync(response, 0);
-    break;
+    if (response != null)
+    {
+        await handler.SendAsync(response, 0);
+    }
 }
