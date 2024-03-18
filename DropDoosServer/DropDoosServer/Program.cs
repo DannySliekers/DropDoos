@@ -15,7 +15,8 @@ listener.Bind(ipEndPoint);
 listener.Listen(100);
 
 var handler = await listener.AcceptAsync();
-PacketManager packetManager = new PacketManager();
+var fileManager = new FileManager();
+var packetManager = new PacketManager(fileManager);
 while (true)
 {
     // Receive message.

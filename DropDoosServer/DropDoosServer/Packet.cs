@@ -5,8 +5,8 @@ namespace DropDoosServer;
 
 internal class Packet
 {
-    public required Command command;
-    public Dictionary<string, string>? optionalFields;
+    public required Command command { get; set; }
+    public Dictionary<string, string>? optionalFields { get; set; }
 
     public byte[] ToByteArray()
     {
