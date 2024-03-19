@@ -1,32 +1,15 @@
-﻿using System.Net.Sockets;
-using System.Net;
-using DropDoosServer;
+﻿using DropDoosServer;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
-IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync("localhost");
-IPAddress ipAddress = ipHostInfo.AddressList[0];
-IPEndPoint ipEndPoint = new(ipAddress, 5252);
+var builder = Host.CreateApplicationBuilder();
 
-using Socket listener = new(
-    ipEndPoint.AddressFamily,
-    SocketType.Stream,
-    ProtocolType.Tcp);
+builder.Logging.AddConsole();
 
-listener.Bind(ipEndPoint);
-listener.Listen(100);
+builder.Services.AddHostedService<Server>();
+builder.Services.AddSingleton<IFileManager, FileManager>();
+builder.Services.AddSingleton<IPacketManager, PacketManager>();
 
-var handler = await listener.AcceptAsync();
-var fileManager = new FileManager();
-var packetManager = new PacketManager(fileManager);
-while (true)
-{
-    // Receive message.
-    var buffer = new byte[7_000_000];
-    var received = await handler.ReceiveAsync(buffer, SocketFlags.None);
-    var packet = Packet.ToPacket(buffer);
-    var response = packetManager.HandlePacket(packet);
-
-    if (response != null)
-    {
-        await handler.SendAsync(response, 0);
-    }
-}
+var host = builder.Build();
+host.Run();

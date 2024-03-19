@@ -1,12 +1,15 @@
-﻿using System.Net.Sockets;
+﻿using Microsoft.Extensions.Logging;
 
 namespace DropDoosServer;
 
-internal class PacketManager
+internal class PacketManager : IPacketManager
 {
-    private readonly FileManager _fileManager;
-    public PacketManager(FileManager fileManager) 
+    private readonly ILogger<IFileManager> _logger;
+    private readonly IFileManager _fileManager;
+
+    public PacketManager(IFileManager fileManager, ILogger<IFileManager> logger) 
     {
+        _logger = logger;
         _fileManager = fileManager;
     }
 
@@ -31,7 +34,7 @@ internal class PacketManager
 
     private byte[]? HandleConnectPacket(Packet packet)
     {
-        Console.WriteLine($"Socket server received message: {packet.command}");
+        _logger.LogInformation("Socket server received message: {command}", packet.command);
         var optionalFields = new Dictionary<string, string>() { 
             { "unique_id", Guid.NewGuid().ToString() }
         };

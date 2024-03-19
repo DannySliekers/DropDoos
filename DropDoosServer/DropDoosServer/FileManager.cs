@@ -1,13 +1,15 @@
 ﻿namespace DropDoosServer;
 
-internal class FileManager
+internal class FileManager : IFileManager
 {
     private readonly List<File> _files;
+    private const string SERVER_MAP = "";
+
     public FileManager()
     {
         _files = new List<File>
         {
-            new File() { Name = "test.txt", Content = "west" }
+            new File() { Name = "test.txt", Content = "chest" }
         };
     }
 
