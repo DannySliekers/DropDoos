@@ -1,13 +1,15 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using File = DropDoosServer.Data.File;
+using Microsoft.Extensions.Logging;
+using DropDoosServer.Data;
 
-namespace DropDoosServer;
+namespace DropDoosServer.Managers;
 
 internal class PacketManager : IPacketManager
 {
     private readonly ILogger<IFileManager> _logger;
     private readonly IFileManager _fileManager;
 
-    public PacketManager(IFileManager fileManager, ILogger<IFileManager> logger) 
+    public PacketManager(IFileManager fileManager, ILogger<IFileManager> logger)
     {
         _logger = logger;
         _fileManager = fileManager;
@@ -23,7 +25,7 @@ internal class PacketManager : IPacketManager
         if (packet.command == Command.Connect)
         {
             return HandleConnectPacket(packet);
-        } 
+        }
         else if (packet.command == Command.Init)
         {
             return HandleInitPacket(packet);
@@ -35,7 +37,7 @@ internal class PacketManager : IPacketManager
     private byte[]? HandleConnectPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.command);
-        var optionalFields = new Dictionary<string, string>() { 
+        var optionalFields = new Dictionary<string, string>() {
             { "unique_id", Guid.NewGuid().ToString() }
         };
         Packet response = new() { command = Command.Connect_Resp, optionalFields = optionalFields };
@@ -47,17 +49,18 @@ internal class PacketManager : IPacketManager
         HandleUploads(packet);
         List<File> downloadList = HandleDownloads(packet);
         var optionalFields = new Dictionary<string, string>();
-        downloadList.ForEach(file => { 
+        downloadList.ForEach(file =>
+        {
             optionalFields.Add(file.Name, file.Content);
         });
-        Packet response = new() { command = Command.Init_Resp, optionalFields = optionalFields};
+        Packet response = new() { command = Command.Init_Resp, optionalFields = optionalFields };
         return response.ToByteArray();
     }
 
     private List<File> HandleDownloads(Packet packet)
     {
         var fileList = new List<File>();
-        foreach(var field in packet.optionalFields)
+        foreach (var field in packet.optionalFields)
         {
             var file = new File() { Name = field.Key, Content = field.Value };
             fileList.Add(file);
@@ -76,7 +79,7 @@ internal class PacketManager : IPacketManager
             if (fileExists && !fileContentEqual)
             {
                 _fileManager.UploadFile(file);
-            } 
+            }
             else
             {
                 _fileManager.AddFile(file);

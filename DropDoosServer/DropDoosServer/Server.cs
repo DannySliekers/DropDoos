@@ -2,6 +2,8 @@
 using System.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using DropDoosServer.Managers;
+using DropDoosServer.Data;
 
 namespace DropDoosServer;
 
@@ -19,14 +21,9 @@ internal class Server : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Server starting up");
-        IPHostEntry ipHostInfo = await Dns.GetHostEntryAsync("localhost");
-        IPAddress ipAddress = ipHostInfo.AddressList[0];
-        IPEndPoint ipEndPoint = new(ipAddress, 5252);
+        IPEndPoint ipEndPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
 
-        using Socket listener = new(
-            ipEndPoint.AddressFamily,
-            SocketType.Stream,
-            ProtocolType.Tcp);
+        using Socket listener = new(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
         listener.Bind(ipEndPoint);
         listener.Listen(100);
@@ -43,7 +40,7 @@ internal class Server : IHostedService
         while (!cancellationToken.IsCancellationRequested) 
         {
             var buffer = new byte[7_000_000];
-            var received = await handler.ReceiveAsync(buffer, SocketFlags.None);
+            await handler.ReceiveAsync(buffer, SocketFlags.None);
             var packet = Packet.ToPacket(buffer);
             var response = _packetManager.HandlePacket(packet);
 

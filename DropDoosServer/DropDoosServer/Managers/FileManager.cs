@@ -1,9 +1,10 @@
-﻿namespace DropDoosServer;
+﻿using File = DropDoosServer.Data.File;
+
+namespace DropDoosServer.Managers;
 
 internal class FileManager : IFileManager
 {
     private readonly List<File> _files;
-    private const string SERVER_MAP = "";
 
     public FileManager()
     {
@@ -34,7 +35,7 @@ internal class FileManager : IFileManager
         if (serverFile != null)
         {
             return serverFile.Content.Equals(file.Content);
-        } 
+        }
         else
         {
             return false;

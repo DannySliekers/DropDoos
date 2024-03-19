@@ -1,4 +1,6 @@
-﻿namespace DropDoosServer;
+﻿using File = DropDoosServer.Data.File;
+
+namespace DropDoosServer.Managers;
 
 internal interface IFileManager
 {

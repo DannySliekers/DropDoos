@@ -1,4 +1,6 @@
-﻿namespace DropDoosServer;
+﻿using DropDoosServer.Data;
+
+namespace DropDoosServer.Managers;
 
 internal interface IPacketManager
 {

@@ -1,4 +1,4 @@
-﻿namespace DropDoosServer;
+﻿namespace DropDoosServer.Data;
 
 internal class File
 {

@@ -1,4 +1,4 @@
-﻿namespace DropDoosClient;
+﻿namespace DropDoosClient.Data;
 
 enum Command
 {
