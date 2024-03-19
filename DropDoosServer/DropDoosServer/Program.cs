@@ -11,6 +11,7 @@ builder.Logging.AddConsole();
 builder.Services.AddHostedService<Server>();
 builder.Services.AddSingleton<IFileManager, FileManager>();
 builder.Services.AddSingleton<IPacketManager, PacketManager>();
+builder.Services.AddHostedService<FileSyncer>();
 
 var host = builder.Build();
 host.Run();

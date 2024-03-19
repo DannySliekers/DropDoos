@@ -46,4 +46,9 @@ internal class FileManager : IFileManager
     {
         return _files.Where(f => !fileList.Any(of => of.Name == f.Name)).ToList();
     }
+
+    public List<File> GetFiles()
+    {
+        return _files;
+    }
 }

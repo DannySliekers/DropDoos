@@ -9,4 +9,5 @@ internal interface IFileManager
     bool CheckIfFileExists(File file);
     bool CheckIfContentEqual(File file);
     List<File> BuildDownloadList(List<File> fileList);
+    List<File> GetFiles();
 }
