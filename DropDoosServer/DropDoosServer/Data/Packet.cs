@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Text;
 
-namespace DropDoosServer;
+namespace DropDoosServer.Data;
 
 internal class Packet
 {
