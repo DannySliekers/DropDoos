@@ -88,16 +88,11 @@ internal class PacketManager : IPacketManager
         foreach (var field in packet.optionalFields)
         {
             var file = new File() { Name = field.Key, Content = field.Value };
-            bool fileExists = _fileManager.CheckIfFileExists(file);
             bool fileContentEqual = _fileManager.CheckIfContentEqual(file);
 
-            if (fileExists && !fileContentEqual)
+            if (!fileContentEqual)
             {
                 _fileManager.UploadFile(file);
-            }
-            else
-            {
-                _fileManager.AddFile(file);
             }
         }
     }

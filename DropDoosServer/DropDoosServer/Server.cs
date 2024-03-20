@@ -39,7 +39,7 @@ internal class Server : IHostedService
     {
         while (!cancellationToken.IsCancellationRequested) 
         {
-            var buffer = new byte[7_000_000];
+            var buffer = new byte[700_000_000];
             await handler.ReceiveAsync(buffer, SocketFlags.None);
             var packet = Packet.ToPacket(buffer);
             var response = _packetManager.HandlePacket(packet);

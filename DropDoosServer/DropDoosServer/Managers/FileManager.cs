@@ -1,37 +1,39 @@
-﻿using File = DropDoosServer.Data.File;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Text;
+using File = DropDoosServer.Data.File;
 
 namespace DropDoosServer.Managers;
 
 internal class FileManager : IFileManager
 {
-    private readonly List<File> _files;
+    private readonly PathConfig _config;
+    private readonly ILogger<IFileManager> _logger;
 
-    public FileManager()
+    public FileManager(IOptions<PathConfig> config, ILogger<IFileManager> logger)
     {
-        _files = new List<File>
-        {
-            new File() { Name = "test.txt", Content = "chest" }
-        };
-    }
-
-    public void AddFile(File newFile)
-    {
-        _files.Add(newFile);
+        _config = config.Value;
+        _logger = logger;
     }
 
     public void UploadFile(File file)
     {
-        _files.Find(f => f.Name == file.Name).Content = file.Content;
-    }
-
-    public bool CheckIfFileExists(File file)
-    {
-        return _files.Exists(f => f.Name.Equals(file.Name));
+        try
+        {
+            using FileStream fs = System.IO.File.Create(_config.ServerFolder + "\\" + file.Name);
+            byte[] data = Convert.FromBase64String(file.Content);
+            fs.Write(data, 0, data.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while writing to file");
+        }
     }
 
     public bool CheckIfContentEqual(File file)
     {
-        var serverFile = _files.Find(f => f.Name.Equals(file.Name));
+        var serverFiles = BuildServerFileList();
+        var serverFile = serverFiles.Find(f => f.Name.Equals(file.Name));
         if (serverFile != null)
         {
             return serverFile.Content.Equals(file.Content);
@@ -44,11 +46,28 @@ internal class FileManager : IFileManager
 
     public List<File> BuildDownloadList(List<File> fileList)
     {
-        return _files.Where(f => !fileList.Any(of => of.Name == f.Name)).ToList();
+        var serverFiles = BuildServerFileList();
+        return serverFiles.Where(f => !fileList.Any(of => of.Name == f.Name)).ToList();
     }
 
-    public List<File> GetFiles()
+    private List<File> BuildServerFileList()
     {
-        return _files;
+        try
+        {
+            var serverFileList = new List<File>();
+            var serverFiles = Directory.GetFiles(_config.ServerFolder).ToList();
+            foreach (var file in serverFiles)
+            {
+                var content = System.IO.File.ReadAllBytes(file);
+                serverFileList.Add(new File() { Name = Path.GetFileName(file), Content = Convert.ToBase64String(content) });
+            }
+            return serverFileList;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while building server file list");
+        }
+
+        return new List<File>();
     }
 }

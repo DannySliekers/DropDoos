@@ -5,7 +5,6 @@ using System.Net.Sockets;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace DropDoosClient;
 
@@ -99,9 +98,17 @@ internal class Client : IHostedService, IDisposable
         var optionalFields = new Dictionary<string, string>();
         string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
 
-        foreach (var file in clientFolder)
+
+        try
         {
-            optionalFields.Add(Path.GetFileName(file), Convert.ToBase64String(File.ReadAllBytes(file)));
+            foreach (var file in clientFolder)
+            {
+                optionalFields.Add(Path.GetFileName(file), Convert.ToBase64String(File.ReadAllBytes(file)));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while getting client files");
         }
 
         return optionalFields;
