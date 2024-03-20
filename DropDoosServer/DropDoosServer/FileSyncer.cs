@@ -1,6 +1,7 @@
 ﻿using DropDoosServer.Managers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text;
 
 namespace DropDoosServer;
@@ -9,13 +10,14 @@ internal class FileSyncer : IHostedService, IDisposable
 {
     private ILogger<FileSyncer> _logger;
     private readonly IFileManager _fileManager;
+    private readonly PathConfig _config;
     private Timer? _timer;
-    private const string SERVER_MAP = "D:\\DropDoos\\ServerMap";
 
-    public FileSyncer(IFileManager fileManager, ILogger<FileSyncer> logger)
+    public FileSyncer(IFileManager fileManager, IOptions<PathConfig> config, ILogger<FileSyncer> logger)
     {
         _fileManager = fileManager;
         _logger = logger;
+        _config = config.Value;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -33,7 +35,7 @@ internal class FileSyncer : IHostedService, IDisposable
         {
             try
             {
-                using FileStream fs = File.Create(SERVER_MAP + "\\" + file.Name);
+                using FileStream fs = File.Create(_config.ServerFolder + "\\" + file.Name);
                 byte[] data = Convert.FromBase64String(file.Content);
                 string decodedString = Encoding.UTF8.GetString(data);
                 byte[] info = new UTF8Encoding(true).GetBytes(decodedString);

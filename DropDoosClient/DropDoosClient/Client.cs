@@ -4,25 +4,23 @@ using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Options;
 
 namespace DropDoosClient;
 
 internal class Client : IHostedService
 {
     private readonly ILogger<Client> _logger;
+    private readonly PathOptions _config;
     private readonly Socket _client;
     private readonly IPEndPoint _endPoint;
-    private readonly string[] _clientFolder;
-    private const string CLIENT_FOLDER_PATH = "D:\\DropDoos\\ClientMap";
 
-    public Client(ILogger<Client> logger)
+    public Client(IOptions<PathOptions> config, ILogger<Client> logger)
     {
         _logger = logger;
         _endPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
-
         _client = new(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-        
-        _clientFolder = Directory.GetFiles(CLIENT_FOLDER_PATH);
+        _config = config.Value;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -61,10 +59,13 @@ internal class Client : IHostedService
         Console.WriteLine($"Socket client received connect_resp: {response}, with unique id: {uniqueid}");
 
         var optionalFields = new Dictionary<string, string>();
-        foreach (var file in _clientFolder)
+        string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
+
+        foreach (var file in clientFolder)
         {
             optionalFields.Add(Path.GetFileName(file), Convert.ToBase64String(File.ReadAllBytes(file)));
         }
+
         var init = new Packet() { command = Command.Init, optionalFields = optionalFields };
         await _client.SendAsync(init.ToByteArray());
     } 
@@ -75,7 +76,7 @@ internal class Client : IHostedService
         {
             try
             {
-                using FileStream fs = File.Create(CLIENT_FOLDER_PATH + "\\" + field.Key);
+                using FileStream fs = File.Create(_config.ClientFolder + "\\" + field.Key);
                 byte[] info = new UTF8Encoding(true).GetBytes(field.Value);
                 fs.Write(info, 0, info.Length);
             }
