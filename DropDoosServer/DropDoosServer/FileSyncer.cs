@@ -37,9 +37,7 @@ internal class FileSyncer : IHostedService, IDisposable
             {
                 using FileStream fs = File.Create(_config.ServerFolder + "\\" + file.Name);
                 byte[] data = Convert.FromBase64String(file.Content);
-                string decodedString = Encoding.UTF8.GetString(data);
-                byte[] info = new UTF8Encoding(true).GetBytes(decodedString);
-                fs.Write(info, 0, info.Length);
+                fs.Write(data, 0, data.Length);
             }
             catch (Exception ex)
             {
