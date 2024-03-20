@@ -5,15 +5,17 @@ using System.Net.Sockets;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace DropDoosClient;
 
-internal class Client : IHostedService
+internal class Client : IHostedService, IDisposable
 {
     private readonly ILogger<Client> _logger;
     private readonly PathOptions _config;
     private readonly Socket _client;
     private readonly IPEndPoint _endPoint;
+    private Timer? _timer;
 
     public Client(IOptions<PathOptions> config, ILogger<Client> logger)
     {
@@ -25,6 +27,8 @@ internal class Client : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Starting client");
+        _timer = new Timer(Sync, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
         await _client.ConnectAsync(_endPoint);
         Packet packet = new() { command = Command.Connect };
         await _client.SendAsync(packet.ToByteArray());
@@ -33,6 +37,15 @@ internal class Client : IHostedService
         {
             Receive(cancellationToken);
         });
+    }
+
+    private async void Sync(object? state)
+    {
+        _logger.LogInformation("Syncing client with server");
+        var optionalFields = GetClientFiles();
+        var sync = new Packet() { command = Command.Sync, optionalFields = optionalFields };
+
+        await _client.SendAsync(sync.ToByteArray());
     }
 
     private async Task Receive(CancellationToken cancellationToken)
@@ -46,9 +59,9 @@ internal class Client : IHostedService
             {
                 await HandleConnectResp(response);
             }
-            else if (response.command == Command.Init_Resp)
+            else if (response.command == Command.Init_Resp || response.command == Command.Sync_Resp)
             {
-                HandleInitResp(response);
+                WriteToFiles(response);
             }
         }
     }
@@ -58,19 +71,13 @@ internal class Client : IHostedService
         string uniqueid = response.optionalFields["unique_id"];
         Console.WriteLine($"Socket client received connect_resp: {response}, with unique id: {uniqueid}");
 
-        var optionalFields = new Dictionary<string, string>();
-        string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
-
-        foreach (var file in clientFolder)
-        {
-            optionalFields.Add(Path.GetFileName(file), Convert.ToBase64String(File.ReadAllBytes(file)));
-        }
-
+        var optionalFields = GetClientFiles();
         var init = new Packet() { command = Command.Init, optionalFields = optionalFields };
+
         await _client.SendAsync(init.ToByteArray());
     } 
 
-    private void HandleInitResp(Packet response)
+    private void WriteToFiles(Packet response)
     {
         foreach (var field in response.optionalFields)
         {
@@ -87,10 +94,29 @@ internal class Client : IHostedService
         }
     }
 
+    private Dictionary<string, string> GetClientFiles()
+    {
+        var optionalFields = new Dictionary<string, string>();
+        string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
+
+        foreach (var file in clientFolder)
+        {
+            optionalFields.Add(Path.GetFileName(file), Convert.ToBase64String(File.ReadAllBytes(file)));
+        }
+
+        return optionalFields;
+    }
+
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _client.Shutdown(SocketShutdown.Both);
         _client.Dispose();
+        _timer?.Change(Timeout.Infinite, 0);
         return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
     }
 }

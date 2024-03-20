@@ -22,16 +22,17 @@ internal class PacketManager : IPacketManager
             return null;
         }
 
-        if (packet.command == Command.Connect)
+        switch(packet.command)
         {
-            return HandleConnectPacket(packet);
+            case Command.Connect:
+                return HandleConnectPacket(packet);
+            case Command.Init:
+                return HandleInitPacket(packet);
+            case Command.Sync:
+                return HandleSyncPacket(packet);
+            default:
+                return null;
         }
-        else if (packet.command == Command.Init)
-        {
-            return HandleInitPacket(packet);
-        }
-
-        return null;
     }
 
     private byte[]? HandleConnectPacket(Packet packet)
@@ -46,6 +47,20 @@ internal class PacketManager : IPacketManager
 
     private byte[]? HandleInitPacket(Packet packet)
     {
+        var optionalFields = Sync(packet);
+        Packet response = new() { command = Command.Init_Resp, optionalFields = optionalFields };
+        return response.ToByteArray();
+    }
+
+    private byte[]? HandleSyncPacket(Packet packet)
+    {
+        var optionalFields = Sync(packet);
+        Packet response = new() { command = Command.Sync_Resp, optionalFields = optionalFields };
+        return response.ToByteArray();
+    }
+
+    private Dictionary<string, string> Sync(Packet packet)
+    {
         HandleUploads(packet);
         List<File> downloadList = HandleDownloads(packet);
         var optionalFields = new Dictionary<string, string>();
@@ -53,8 +68,8 @@ internal class PacketManager : IPacketManager
         {
             optionalFields.Add(file.Name, file.Content);
         });
-        Packet response = new() { command = Command.Init_Resp, optionalFields = optionalFields };
-        return response.ToByteArray();
+
+        return optionalFields;
     }
 
     private List<File> HandleDownloads(Packet packet)
