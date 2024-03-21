@@ -32,10 +32,15 @@ internal class Client : IHostedService, IDisposable
         Packet packet = new() { command = Command.Connect };
         await _client.SendAsync(packet.ToByteArray());
         _logger.LogInformation("Socket client sent message: {packet}", packet);
-        var task = Task.Factory.StartNew(() =>
+
+        try
         {
-            Receive(cancellationToken);
-        });
+            await Receive(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while receiving");
+        }
     }
 
     private async void Sync(object? state)

@@ -29,17 +29,21 @@ internal class Server : IHostedService
         listener.Listen(100);
         var handler = await listener.AcceptAsync();
 
-        var task = Task.Factory.StartNew(() =>
+        try
         {
-            Listen(handler, cancellationToken);
-        });
+            await Listen(handler, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while receiving");
+        }
     }
 
     private async Task Listen(Socket handler, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested) 
         {
-            var buffer = new byte[700_000_000];
+            var buffer = new byte[70_000_000];
             await handler.ReceiveAsync(buffer, SocketFlags.None);
             var packet = Packet.ToPacket(buffer);
             var response = _packetManager.HandlePacket(packet);
