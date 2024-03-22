@@ -41,15 +41,19 @@ internal class Server : IHostedService
 
     private async Task Listen(Socket handler, CancellationToken cancellationToken)
     {
+        using MemoryStream stream = new MemoryStream();
         while (!cancellationToken.IsCancellationRequested) 
         {
-            var buffer = new byte[70_000_000];
-            await handler.ReceiveAsync(buffer, SocketFlags.None);
-            var packet = Packet.ToPacket(buffer);
-            var response = _packetManager.HandlePacket(packet);
+            var buffer = new byte[4096];
+            var bytesReceived = await handler.ReceiveAsync(buffer, SocketFlags.None);
+            var packetSize = BitConverter.ToInt32(buffer.Take(4).ToArray());
+            stream.Write(buffer, 4, bytesReceived - 4);
 
-            if (response != null)
+            if (packetSize <= stream.Length)
             {
+                var packet = Packet.ToPacket(stream.ToArray());
+                stream.SetLength(0);
+                var response = _packetManager.HandlePacket(packet);
                 await handler.SendAsync(response, 0);
             }
         }

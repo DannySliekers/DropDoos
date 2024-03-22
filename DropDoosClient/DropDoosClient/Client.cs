@@ -29,9 +29,9 @@ internal class Client : IHostedService, IDisposable
         _logger.LogInformation("Starting client");
         _timer = new Timer(Sync, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
         await _client.ConnectAsync(_endPoint);
-        Packet packet = new() { command = Command.Connect };
-        await _client.SendAsync(packet.ToByteArray());
-        _logger.LogInformation("Socket client sent message: {packet}", packet);
+
+        Packet connect = new() { command = Command.Connect };
+        await Send(connect);
 
         try
         {
@@ -48,8 +48,7 @@ internal class Client : IHostedService, IDisposable
         _logger.LogInformation("Syncing client with server");
         var optionalFields = GetClientFiles();
         var sync = new Packet() { command = Command.Sync, optionalFields = optionalFields };
-
-        await _client.SendAsync(sync.ToByteArray());
+        await Send(sync);
     }
 
     private async Task Receive(CancellationToken cancellationToken)
@@ -77,9 +76,32 @@ internal class Client : IHostedService, IDisposable
 
         var optionalFields = GetClientFiles();
         var init = new Packet() { command = Command.Init, optionalFields = optionalFields };
-
-        await _client.SendAsync(init.ToByteArray());
+        await Send(init);
     } 
+
+    private async Task Send(Packet packet)
+    {
+        var packetBytes = packet.ToByteArray();
+        var packetSize = packetBytes.Length;
+        var position = 0;
+
+        while (position < packetBytes.Length)
+        {
+            var bytesLeft = packetSize - position;
+            var buffer = new byte[4096];
+
+            // add total packet size to buffer
+            Array.Copy(BitConverter.GetBytes(packetSize), buffer, 4);
+
+            // add packet content to buffer
+            Array.Copy(packetBytes, position, buffer, 4, bytesLeft < 4092 ? bytesLeft : 4092);
+
+            await _client.SendAsync(buffer);
+            position += bytesLeft < 4092 ? bytesLeft : 4092;
+        }
+
+        _logger.LogInformation("Finished sending: {command}", packet.command);
+    }
 
     private void WriteToFiles(Packet response)
     {

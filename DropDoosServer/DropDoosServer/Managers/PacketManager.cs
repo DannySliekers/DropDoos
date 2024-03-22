@@ -15,14 +15,9 @@ internal class PacketManager : IPacketManager
         _fileManager = fileManager;
     }
 
-    public byte[]? HandlePacket(Packet packet)
+    public byte[] HandlePacket(Packet packet)
     {
-        if (packet == null)
-        {
-            return null;
-        }
-
-        switch(packet.command)
+        switch (packet.command)
         {
             case Command.Connect:
                 return HandleConnectPacket(packet);
@@ -35,7 +30,7 @@ internal class PacketManager : IPacketManager
         }
     }
 
-    private byte[]? HandleConnectPacket(Packet packet)
+    private byte[] HandleConnectPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.command);
         var optionalFields = new Dictionary<string, string>() {
@@ -45,14 +40,14 @@ internal class PacketManager : IPacketManager
         return response.ToByteArray();
     }
 
-    private byte[]? HandleInitPacket(Packet packet)
+    private byte[] HandleInitPacket(Packet packet)
     {
         var optionalFields = Sync(packet);
         Packet response = new() { command = Command.Init_Resp, optionalFields = optionalFields };
         return response.ToByteArray();
     }
 
-    private byte[]? HandleSyncPacket(Packet packet)
+    private byte[] HandleSyncPacket(Packet packet)
     {
         var optionalFields = Sync(packet);
         Packet response = new() { command = Command.Sync_Resp, optionalFields = optionalFields };
