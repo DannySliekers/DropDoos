@@ -31,7 +31,7 @@ internal class Server : IHostedService
 
         try
         {
-            await Listen(handler, cancellationToken);
+            await Receive(handler, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -39,7 +39,7 @@ internal class Server : IHostedService
         }
     }
 
-    private async Task Listen(Socket handler, CancellationToken cancellationToken)
+    private async Task Receive(Socket handler, CancellationToken cancellationToken)
     {
         using MemoryStream stream = new MemoryStream();
         while (!cancellationToken.IsCancellationRequested) 

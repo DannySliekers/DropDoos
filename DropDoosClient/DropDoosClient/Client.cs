@@ -53,18 +53,26 @@ internal class Client : IHostedService, IDisposable
 
     private async Task Receive(CancellationToken cancellationToken)
     {
+        using MemoryStream stream = new MemoryStream();
         while (!cancellationToken.IsCancellationRequested)
         {
-            var buffer = new byte[7_000_000];
-            await _client.ReceiveAsync(buffer);
-            var response = Packet.ToPacket(buffer);
-            if (response.command == Command.Connect_Resp)
+            var buffer = new byte[4096];
+            var bytesReceived = await _client.ReceiveAsync(buffer, SocketFlags.None);
+            var packetSize = BitConverter.ToInt32(buffer.Take(4).ToArray());
+            stream.Write(buffer, 4, bytesReceived - 4);
+
+            if (packetSize <= stream.Length)
             {
-                await HandleConnectResp(response);
-            }
-            else if (response.command == Command.Init_Resp || response.command == Command.Sync_Resp)
-            {
-                WriteToFiles(response);
+                var response = Packet.ToPacket(stream.ToArray());
+                stream.SetLength(0);
+                if (response.command == Command.Connect_Resp)
+                {
+                    await HandleConnectResp(response);
+                }
+                else if (response.command == Command.Init_Resp || response.command == Command.Sync_Resp)
+                {
+                    WriteToFiles(response);
+                }
             }
         }
     }
