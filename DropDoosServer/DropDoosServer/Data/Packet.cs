@@ -53,27 +53,33 @@ internal class Packet
             bytes.Add(singleByte);
         }
     }
+
     public static Packet ToPacket(byte[] bytes)
     {
         var command = bytes.Take(COMMAND_SIZE).ToArray();
         var packetCommand = (Command) BitConverter.ToInt32(command);
-        var fileName = bytes.Skip(COMMAND_SIZE).Take(FILE_NAME_SIZE).ToArray();
-        var packetFileName = Encoding.UTF8.GetString(fileName).Trim('\0');
-        var fileSize = bytes.Skip(COMMAND_SIZE + FILE_NAME_SIZE).Take(FILE_SIZE_SIZE).ToArray();
-        var packetFileSize = BitConverter.ToInt64(fileSize);
-        var fileContent = bytes.Skip(COMMAND_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE)
-            .Take(bytes.Length - COMMAND_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE).ToArray();
 
         var packet = new Packet()
         {
-            Command = packetCommand,
-            File = new File()
+            Command = packetCommand
+        };
+
+        if (packetCommand == Command.Init || packetCommand == Command.Sync)
+        {
+            var fileName = bytes.Skip(COMMAND_SIZE).Take(FILE_NAME_SIZE).ToArray();
+            var packetFileName = Encoding.UTF8.GetString(fileName).Trim('\0');
+            var fileSize = bytes.Skip(COMMAND_SIZE + FILE_NAME_SIZE).Take(FILE_SIZE_SIZE).ToArray();
+            var packetFileSize = BitConverter.ToInt64(fileSize);
+            var fileContent = bytes.Skip(COMMAND_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE)
+                .Take(bytes.Length - COMMAND_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE).ToArray();
+
+            packet.File = new File()
             {
                 Name = packetFileName,
                 Size = packetFileSize,
                 Content = fileContent
-            }
-        };
+            };
+        }
 
         return packet;
     }

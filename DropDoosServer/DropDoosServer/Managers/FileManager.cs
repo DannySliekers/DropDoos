@@ -15,14 +15,14 @@ internal class FileManager : IFileManager
         _logger = logger;
     }
 
-    public long UploadFile(File file)
+    public async Task<long> UploadFile(File file)
     {
         try
         {
             var tempPath = _config.ServerFolder + "\\temp\\" + file.Name;
             using FileStream fs = new FileStream(tempPath, FileMode.Append);
             var data = file.Content;
-            fs.Write(data, 0, data.Length);
+            await fs.WriteAsync(data, 0, data.Length);
             return new FileInfo(tempPath).Length;
         }
         catch (Exception ex)

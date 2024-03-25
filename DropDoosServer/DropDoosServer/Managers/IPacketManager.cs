@@ -4,5 +4,5 @@ namespace DropDoosServer.Managers;
 
 internal interface IPacketManager
 {
-    Packet HandlePacket(Packet packet);
+    Task<Packet> HandlePacket(Packet packet);
 }

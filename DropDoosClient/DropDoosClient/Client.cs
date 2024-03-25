@@ -6,7 +6,6 @@ using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
 using File = DropDoosClient.Data.File;
-using Newtonsoft.Json;
 
 namespace DropDoosClient;
 
@@ -67,7 +66,7 @@ internal class Client : IHostedService, IDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             var buffer = new byte[4096];
-            var bytesReceived = await _client.ReceiveAsync(buffer, SocketFlags.None);
+            var bytesReceived = await _client.ReceiveAsync(buffer);
             var packetSize = BitConverter.ToInt32(buffer.Take(4).ToArray());
             stream.Write(buffer, 4, bytesReceived - 4);
 
@@ -90,8 +89,10 @@ internal class Client : IHostedService, IDisposable
                     await HandleInit();
                     break;
                 case Command.Init_Resp:
-                    initCompleted = true;
-                    WriteToFiles(response);
+                    if (initCompleted)
+                    {
+                        WriteToFiles(response);
+                    }
                     break;
                 case Command.Sync:
                     WriteToFiles(response);
@@ -108,23 +109,24 @@ internal class Client : IHostedService, IDisposable
     private async Task Send(Packet packet)
     {
         var packetBytes = packet.ToByteArray();
-        var packetSize = packetBytes.Length;
+        var eom = Encoding.UTF8.GetBytes("||DropProto-EOM||");
+        var totalPackage = new byte[packetBytes.Length + eom.Length];
+        Array.Copy(packetBytes, 0, totalPackage, 0, packetBytes.Length);
+        Array.Copy(eom, 0, totalPackage, packetBytes.Length, eom.Length);
         var position = 0;
+        using var stream = new NetworkStream(_client);
+        await stream.WriteAsync(totalPackage, 0, totalPackage.Length);
+        //while (position < totalPackage.Length)
+        //{
+        //    var bytesLeft = totalPackage.Length - position;
+        //    var buffer = new byte[4096];
 
-        while (position < packetBytes.Length)
-        {
-            var bytesLeft = packetSize - position;
-            var buffer = new byte[4096];
+        //    // add packet content to buffer
+        //    Array.Copy(totalPackage, position, buffer, 0, bytesLeft < 4096 ? bytesLeft : 4096);
 
-            // add total packet size to buffer
-            Array.Copy(BitConverter.GetBytes(packetSize), buffer, 4);
-
-            // add packet content to buffer
-            Array.Copy(packetBytes, position, buffer, 4, bytesLeft < 4092 ? bytesLeft : 4092);
-
-            await _client.SendAsync(buffer);
-            position += bytesLeft < 4092 ? bytesLeft : 4092;
-        }
+        //    await _client.SendAsync(buffer);
+        //    position += bytesLeft < 4096 ? bytesLeft : 4096;
+        //}
 
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
@@ -161,13 +163,19 @@ internal class Client : IHostedService, IDisposable
 
         foreach (var file in clientFolder)
         {
-            var position = 0;
+            long position = 0;
             var fileSize = new FileInfo(file).Length;
-            while (position < fileSize)
+            while (position <= fileSize)
             {
+                if (position == fileSize)
+                {
+                    break;
+                }
+
                 using MemoryStream memoryStream = new MemoryStream();
                 using (var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
                 {
+
                     while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
                     {
                         fileStream.Seek(position, SeekOrigin.Begin);
@@ -189,6 +197,8 @@ internal class Client : IHostedService, IDisposable
                 }
             }
         }
+
+        initCompleted = true;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

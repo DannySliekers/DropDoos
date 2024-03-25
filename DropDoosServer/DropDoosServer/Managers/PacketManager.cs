@@ -15,7 +15,7 @@ internal class PacketManager : IPacketManager
         _fileManager = fileManager;
     }
 
-    public Packet? HandlePacket(Packet packet)
+    public Task<Packet?> HandlePacket(Packet packet)
     {
         switch (packet.Command)
         {
@@ -30,18 +30,18 @@ internal class PacketManager : IPacketManager
         }
     }
 
-    private Packet HandleConnectPacket(Packet packet)
+    private Task<Packet> HandleConnectPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
         Packet response = new() { Command = Command.Connect_Resp };
         _logger.LogInformation("Sending {command} to client", response.Command);
-        return response;
+        return Task.FromResult(response);
     }
 
-    private Packet? HandleInitPacket(Packet packet)
+    private async Task<Packet?> HandleInitPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
-        var doneWithUploading = HandleUploads(packet);
+        var doneWithUploading = await HandleUploads(packet);
         Packet? response = null;
         if (doneWithUploading)
         {
@@ -85,11 +85,11 @@ internal class PacketManager : IPacketManager
     //    return _fileManager.BuildDownloadList(fileList);
     //}
 
-    private bool HandleUploads(Packet packet)
+    private async Task<bool> HandleUploads(Packet packet)
     {
-        bool doneWithUploading = true;
+        bool doneWithUploading = false;
 
-        var serverFileSize = _fileManager.UploadFile(packet.File);
+        var serverFileSize =  await _fileManager.UploadFile(packet.File);
 
         if(packet.File.Size != serverFileSize)
         {
