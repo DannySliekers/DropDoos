@@ -5,6 +5,8 @@ using System.Net.Sockets;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
+using File = DropDoosClient.Data.File;
+using Newtonsoft.Json;
 
 namespace DropDoosClient;
 
@@ -15,6 +17,7 @@ internal class Client : IHostedService, IDisposable
     private readonly Socket _client;
     private readonly IPEndPoint _endPoint;
     private Timer? _timer;
+    private bool initCompleted;
 
     public Client(IOptions<PathOptions> config, ILogger<Client> logger)
     {
@@ -22,6 +25,7 @@ internal class Client : IHostedService, IDisposable
         _endPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
         _client = new(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         _config = config.Value;
+        initCompleted = false;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -30,7 +34,7 @@ internal class Client : IHostedService, IDisposable
         _timer = new Timer(Sync, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
         await _client.ConnectAsync(_endPoint);
 
-        Packet connect = new() { command = Command.Connect };
+        Packet connect = new() { Command = Command.Connect };
         await Send(connect);
 
         try
@@ -45,10 +49,16 @@ internal class Client : IHostedService, IDisposable
 
     private async void Sync(object? state)
     {
-        _logger.LogInformation("Syncing client with server");
-        var optionalFields = GetClientFiles();
-        var sync = new Packet() { command = Command.Sync, optionalFields = optionalFields };
-        await Send(sync);
+        if (initCompleted)
+        {
+            _logger.LogInformation("Syncing client with server");
+            var sync = new Packet() { Command = Command.Sync };
+            await Send(sync);
+        } else
+        {
+            _logger.LogInformation("Waiting for init to complete before syncing with server");
+        }
+
     }
 
     private async Task Receive(CancellationToken cancellationToken)
@@ -65,27 +75,35 @@ internal class Client : IHostedService, IDisposable
             {
                 var response = Packet.ToPacket(stream.ToArray());
                 stream.SetLength(0);
-                if (response.command == Command.Connect_Resp)
-                {
-                    await HandleConnectResp(response);
-                }
-                else if (response.command == Command.Init_Resp || response.command == Command.Sync_Resp)
-                {
-                    WriteToFiles(response);
-                }
+                await HandleResponse(response);
             }
         }
     }
 
-    private async Task HandleConnectResp(Packet response)
+    private async Task HandleResponse(Packet response)
     {
-        string uniqueid = response.optionalFields["unique_id"];
-        Console.WriteLine($"Socket client received connect_resp: {response}, with unique id: {uniqueid}");
+        try
+        {
+            switch (response.Command)
+            {
+                case Command.Connect_Resp:
+                    await HandleInit();
+                    break;
+                case Command.Init_Resp:
+                    initCompleted = true;
+                    WriteToFiles(response);
+                    break;
+                case Command.Sync:
+                    WriteToFiles(response);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while getting client files");
+        }
 
-        var optionalFields = GetClientFiles();
-        var init = new Packet() { command = Command.Init, optionalFields = optionalFields };
-        await Send(init);
-    } 
+    }
 
     private async Task Send(Packet packet)
     {
@@ -108,7 +126,7 @@ internal class Client : IHostedService, IDisposable
             position += bytesLeft < 4092 ? bytesLeft : 4092;
         }
 
-        _logger.LogInformation("Finished sending: {command}", packet.command);
+        _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
 
     private void WriteToFiles(Packet response)
@@ -117,7 +135,7 @@ internal class Client : IHostedService, IDisposable
         {
             try
             {
-                using FileStream fs = File.Create(_config.ClientFolder + "\\" + field.Key);
+                using FileStream fs = System.IO.File.Create(_config.ClientFolder + "\\" + field.Key);
                 byte[] info = new UTF8Encoding(true).GetBytes(field.Value);
                 fs.Write(info, 0, info.Length);
             }
@@ -128,25 +146,49 @@ internal class Client : IHostedService, IDisposable
         }
     }
 
-    private Dictionary<string, string> GetClientFiles()
+    private List<File> GetClientFiles()
     {
-        var optionalFields = new Dictionary<string, string>();
+        List<File> files = new List<File>();
+
+
+
+        return files;
+    }
+
+    private async Task HandleInit()
+    {
         string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
 
-
-        try
+        foreach (var file in clientFolder)
         {
-            foreach (var file in clientFolder)
+            var position = 0;
+            var fileSize = new FileInfo(file).Length;
+            while (position < fileSize)
             {
-                optionalFields.Add(Path.GetFileName(file), Convert.ToBase64String(File.ReadAllBytes(file)));
+                using MemoryStream memoryStream = new MemoryStream();
+                using (var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                {
+                    while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
+                    {
+                        fileStream.Seek(position, SeekOrigin.Begin);
+                        byte[] buffer = new byte[4096];
+                        int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
+                        memoryStream.Write(buffer, 0, bytesRead);
+                        position += bytesRead;
+                    }
+
+                    var fileToSend = new File()
+                    {
+                        Name = Path.GetFileName(file),
+                        Content = memoryStream.ToArray(),
+                        Size = new FileInfo(file).Length
+                    };
+
+                    var init = new Packet() { Command = Command.Init, File = fileToSend };
+                    await Send(init);
+                }
             }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Something went wrong while getting client files");
-        }
-
-        return optionalFields;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

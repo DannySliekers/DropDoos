@@ -1,9 +1,9 @@
 ﻿enum Command
 {
-    Connect,
-    Connect_Resp,
-    Init,
-    Init_Resp,
-    Sync,
-    Sync_Resp
+    Connect = 1,
+    Connect_Resp = 2,
+    Init = 3,
+    Init_Resp = 4,
+    Sync = 5,
+    Sync_Resp = 6,
 }

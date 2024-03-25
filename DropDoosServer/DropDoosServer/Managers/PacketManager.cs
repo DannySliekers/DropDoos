@@ -15,80 +15,96 @@ internal class PacketManager : IPacketManager
         _fileManager = fileManager;
     }
 
-    public byte[] HandlePacket(Packet packet)
+    public Packet? HandlePacket(Packet packet)
     {
-        switch (packet.command)
+        switch (packet.Command)
         {
             case Command.Connect:
                 return HandleConnectPacket(packet);
             case Command.Init:
                 return HandleInitPacket(packet);
             case Command.Sync:
-                return HandleSyncPacket(packet);
+                //return HandleSyncPacket(packet);
             default:
                 return null;
         }
     }
 
-    private byte[] HandleConnectPacket(Packet packet)
+    private Packet HandleConnectPacket(Packet packet)
     {
-        _logger.LogInformation("Socket server received message: {command}", packet.command);
-        var optionalFields = new Dictionary<string, string>() {
-            { "unique_id", Guid.NewGuid().ToString() }
-        };
-        Packet response = new() { command = Command.Connect_Resp, optionalFields = optionalFields };
-        return response.ToByteArray();
+        _logger.LogInformation("Socket server received message: {command}", packet.Command);
+        Packet response = new() { Command = Command.Connect_Resp };
+        _logger.LogInformation("Sending {command} to client", response.Command);
+        return response;
     }
 
-    private byte[] HandleInitPacket(Packet packet)
+    private Packet? HandleInitPacket(Packet packet)
     {
-        var optionalFields = Sync(packet);
-        Packet response = new() { command = Command.Init_Resp, optionalFields = optionalFields };
-        return response.ToByteArray();
-    }
-
-    private byte[] HandleSyncPacket(Packet packet)
-    {
-        var optionalFields = Sync(packet);
-        Packet response = new() { command = Command.Sync_Resp, optionalFields = optionalFields };
-        return response.ToByteArray();
-    }
-
-    private Dictionary<string, string> Sync(Packet packet)
-    {
-        HandleUploads(packet);
-        List<File> downloadList = HandleDownloads(packet);
-        var optionalFields = new Dictionary<string, string>();
-        downloadList.ForEach(file =>
+        _logger.LogInformation("Socket server received message: {command}", packet.Command);
+        var doneWithUploading = HandleUploads(packet);
+        Packet? response = null;
+        if (doneWithUploading)
         {
-            optionalFields.Add(file.Name, file.Content);
-        });
-
-        return optionalFields;
-    }
-
-    private List<File> HandleDownloads(Packet packet)
-    {
-        var fileList = new List<File>();
-        foreach (var field in packet.optionalFields)
-        {
-            var file = new File() { Name = field.Key, Content = field.Value };
-            fileList.Add(file);
+            // TODO: add files
+            response = new() { Command = Command.Init_Resp };
+            _logger.LogInformation("Sending {command} to client", response.Command);
         }
-        return _fileManager.BuildDownloadList(fileList);
+        return response;
     }
 
-    private void HandleUploads(Packet packet)
-    {
-        foreach (var field in packet.optionalFields)
-        {
-            var file = new File() { Name = field.Key, Content = field.Value };
-            bool fileContentEqual = _fileManager.CheckIfContentEqual(file);
+    //private Packet HandleSyncPacket(Packet packet)
+    //{
+    //    _logger.LogInformation("Socket server received message: {command}", packet.Command);
+    //    var optionalFields = Sync(packet);
+    //    Packet response = new() { Command = Command.Sync_Resp, optionalFields = optionalFields };
+    //    _logger.LogInformation("Sending {command} to client", response.Command);
+    //    return response;
+    //}
 
-            if (!fileContentEqual)
-            {
-                _fileManager.UploadFile(file);
-            }
+    //private List<File> Sync(Packet packet)
+    //{
+    //    HandleUploads(packet);
+    //    List<File> downloadList = HandleDownloads(packet);
+    //    var optionalFields = new Dictionary<string, string>();
+    //    downloadList.ForEach(file =>
+    //    {
+    //        optionalFields.Add(file.Name, file.Content);
+    //    });
+
+    //    return optionalFields;
+    //}
+
+    //private List<File> HandleDownloads(Packet packet)
+    //{
+    //    var fileList = new List<File>();
+    //    foreach (var field in packet.optionalFields)
+    //    {
+    //        var file = new File() { Name = field.Key, Content = field.Value };
+    //        fileList.Add(file);
+    //    }
+    //    return _fileManager.BuildDownloadList(fileList);
+    //}
+
+    private bool HandleUploads(Packet packet)
+    {
+        bool doneWithUploading = true;
+
+        var serverFileSize = _fileManager.UploadFile(packet.File);
+
+        if(packet.File.Size != serverFileSize)
+        {
+            doneWithUploading = false;
         }
+
+        return doneWithUploading;
+        //foreach (var file in packet.Files)
+        //{
+        //    bool fileContentEqual = _fileManager.CheckIfContentEqual(file);
+
+        //    if (!fileContentEqual)
+        //    {
+        //        _fileManager.UploadFile(file);
+        //    }
+        //}
     }
 }

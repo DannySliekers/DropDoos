@@ -54,9 +54,37 @@ internal class Server : IHostedService
                 var packet = Packet.ToPacket(stream.ToArray());
                 stream.SetLength(0);
                 var response = _packetManager.HandlePacket(packet);
-                await handler.SendAsync(response, 0);
+
+                if (response != null)
+                {
+                    await Send(handler, response);
+                }
             }
         }
+    }
+
+    private async Task Send(Socket handler, Packet packet)
+    {
+        var packetBytes = packet.ToByteArray();
+        var packetSize = packetBytes.Length;
+        var position = 0;
+
+        while (position < packetBytes.Length)
+        {
+            var bytesLeft = packetSize - position;
+            var buffer = new byte[4096];
+
+            // add total packet size to buffer
+            Array.Copy(BitConverter.GetBytes(packetSize), buffer, 4);
+
+            // add packet content to buffer
+            Array.Copy(packetBytes, position, buffer, 4, bytesLeft < 4092 ? bytesLeft : 4092);
+
+            await handler.SendAsync(buffer);
+            position += bytesLeft < 4092 ? bytesLeft : 4092;
+        }
+
+        _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
