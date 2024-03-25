@@ -183,8 +183,13 @@ internal class Client : IHostedService, IDisposable
                         int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
                         memoryStream.Write(buffer, 0, bytesRead);
                         position += bytesRead;
-                    }
 
+                        if(bytesRead == 0)
+                        {
+                            break;
+                        }
+                    }
+                    _logger.LogInformation(position.ToString());
                     var fileToSend = new File()
                     {
                         Name = Path.GetFileName(file),

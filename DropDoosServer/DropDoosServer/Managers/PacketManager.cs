@@ -87,7 +87,7 @@ internal class PacketManager : IPacketManager
 
     private async Task<bool> HandleUploads(Packet packet)
     {
-        bool doneWithUploading = false;
+        bool doneWithUploading = true;
 
         var serverFileSize =  await _fileManager.UploadFile(packet.File);
 

@@ -27,7 +27,7 @@ internal class Packet
         }
 
 
-        return bytes.ToArray();
+       return bytes.ToArray();
     }
 
     private void EncodeFile(List<byte> bytes)
