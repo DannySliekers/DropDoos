@@ -45,11 +45,13 @@ internal class Server : IHostedService
     {
         using MemoryStream stream = new MemoryStream();
         var buffer = new byte[4096];
+
         while (!cancellationToken.IsCancellationRequested) 
         {
             var bytesReceived = await handler.ReceiveAsync(buffer);
             var eomLength = Encoding.UTF8.GetBytes("||DropProto-EOM||").Length;
             var eomIndex = IndexOfEOM(buffer, eomLength);
+
             if (eomIndex > 0)
             {
                 stream.Write(buffer[..eomIndex], 0, eomIndex);
@@ -65,24 +67,10 @@ internal class Server : IHostedService
                     await Send(handler, response);
                 }
             } 
-            else if(bytesReceived > 0)
+            else if (bytesReceived > 0)
             {
                 stream.Write(buffer[..bytesReceived], 0, bytesReceived);
             }
-
-            //if (Encoding.UTF8.GetString(buffer[..bytesReceived]).IndexOf("||DropProto-EOM||") > 0)
-            //{
-            //    var test = stream.ToArray();
-            //    _logger.LogInformation(test[0].ToString());
-            //    var packet = Packet.ToPacket(stream.ToArray().Skip());
-            //    var response = await _packetManager.HandlePacket(packet);
-            //    stream.SetLength(0);
-
-            //    if (response != null)
-            //    {
-            //        await Send(handler, response);
-            //    }
-            //}
         }
     }
 
@@ -98,6 +86,7 @@ internal class Server : IHostedService
             {
                 var potentialEomBytes = buffer[i..(i + eomLength)];
                 var potentialEomString = Encoding.UTF8.GetString(potentialEomBytes);
+
                 if (potentialEomString.Equals("||DropProto-EOM||"))
                 {
                     return i;
@@ -111,23 +100,14 @@ internal class Server : IHostedService
     private async Task Send(Socket handler, Packet packet)
     {
         var packetBytes = packet.ToByteArray();
-        var packetSize = packetBytes.Length;
-        var position = 0;
+        var eom = Encoding.UTF8.GetBytes("||DropProto-EOM||");
+        var totalPackage = new byte[packetBytes.Length + eom.Length];
 
-        while (position < packetBytes.Length)
-        {
-            var bytesLeft = packetSize - position;
-            var buffer = new byte[4096];
+        Array.Copy(packetBytes, 0, totalPackage, 0, packetBytes.Length);
+        Array.Copy(eom, 0, totalPackage, packetBytes.Length, eom.Length);
 
-            // add total packet size to buffer
-            Array.Copy(BitConverter.GetBytes(packetSize), buffer, 4);
-
-            // add packet content to buffer
-            Array.Copy(packetBytes, position, buffer, 4, bytesLeft < 4092 ? bytesLeft : 4092);
-
-            await handler.SendAsync(buffer);
-            position += bytesLeft < 4092 ? bytesLeft : 4092;
-        }
+        using var stream = new NetworkStream(handler);
+        await stream.WriteAsync(totalPackage, 0, totalPackage.Length);
 
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }

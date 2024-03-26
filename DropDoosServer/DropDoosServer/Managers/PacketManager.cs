@@ -91,20 +91,11 @@ internal class PacketManager : IPacketManager
 
         var serverFileSize =  await _fileManager.UploadFile(packet.File);
 
-        if(packet.File.Size != serverFileSize)
+        if (packet.File.Size != serverFileSize)
         {
             doneWithUploading = false;
         }
 
         return doneWithUploading;
-        //foreach (var file in packet.Files)
-        //{
-        //    bool fileContentEqual = _fileManager.CheckIfContentEqual(file);
-
-        //    if (!fileContentEqual)
-        //    {
-        //        _fileManager.UploadFile(file);
-        //    }
-        //}
     }
 }

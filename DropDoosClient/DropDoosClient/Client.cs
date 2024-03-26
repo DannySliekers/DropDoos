@@ -111,22 +111,12 @@ internal class Client : IHostedService, IDisposable
         var packetBytes = packet.ToByteArray();
         var eom = Encoding.UTF8.GetBytes("||DropProto-EOM||");
         var totalPackage = new byte[packetBytes.Length + eom.Length];
+
         Array.Copy(packetBytes, 0, totalPackage, 0, packetBytes.Length);
         Array.Copy(eom, 0, totalPackage, packetBytes.Length, eom.Length);
-        var position = 0;
+
         using var stream = new NetworkStream(_client);
         await stream.WriteAsync(totalPackage, 0, totalPackage.Length);
-        //while (position < totalPackage.Length)
-        //{
-        //    var bytesLeft = totalPackage.Length - position;
-        //    var buffer = new byte[4096];
-
-        //    // add packet content to buffer
-        //    Array.Copy(totalPackage, position, buffer, 0, bytesLeft < 4096 ? bytesLeft : 4096);
-
-        //    await _client.SendAsync(buffer);
-        //    position += bytesLeft < 4096 ? bytesLeft : 4096;
-        //}
 
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
