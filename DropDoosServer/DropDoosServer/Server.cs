@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using DropDoosServer.Managers;
 using DropDoosServer.Data;
 using System.Text;
-using System.Linq;
 
 namespace DropDoosServer;
 

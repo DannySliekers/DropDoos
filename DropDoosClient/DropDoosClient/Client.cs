@@ -60,14 +60,14 @@ internal class Client : IHostedService, IDisposable
 
     }
 
-    private async Task Receive(Socket handler, CancellationToken cancellationToken)
+    private async Task Receive(CancellationToken cancellationToken)
     {
         using MemoryStream stream = new MemoryStream();
         var buffer = new byte[4096];
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var bytesReceived = await handler.ReceiveAsync(buffer);
+            var bytesReceived = await _client.ReceiveAsync(buffer);
             var eomLength = Encoding.UTF8.GetBytes("||DropProto-EOM||").Length;
             var eomIndex = IndexOfEOM(buffer, eomLength);
 
@@ -170,15 +170,6 @@ internal class Client : IHostedService, IDisposable
         }
     }
 
-    private List<File> GetClientFiles()
-    {
-        List<File> files = new List<File>();
-
-
-
-        return files;
-    }
-
     private async Task HandleInit()
     {
         string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
@@ -211,7 +202,7 @@ internal class Client : IHostedService, IDisposable
                             break;
                         }
                     }
-                    _logger.LogInformation(position.ToString());
+
                     var fileToSend = new File()
                     {
                         Name = Path.GetFileName(file),
