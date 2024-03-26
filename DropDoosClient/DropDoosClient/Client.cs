@@ -60,23 +60,55 @@ internal class Client : IHostedService, IDisposable
 
     }
 
-    private async Task Receive(CancellationToken cancellationToken)
+    private async Task Receive(Socket handler, CancellationToken cancellationToken)
     {
         using MemoryStream stream = new MemoryStream();
+        var buffer = new byte[4096];
+
         while (!cancellationToken.IsCancellationRequested)
         {
-            var buffer = new byte[4096];
-            var bytesReceived = await _client.ReceiveAsync(buffer);
-            var packetSize = BitConverter.ToInt32(buffer.Take(4).ToArray());
-            stream.Write(buffer, 4, bytesReceived - 4);
+            var bytesReceived = await handler.ReceiveAsync(buffer);
+            var eomLength = Encoding.UTF8.GetBytes("||DropProto-EOM||").Length;
+            var eomIndex = IndexOfEOM(buffer, eomLength);
 
-            if (packetSize <= stream.Length)
+            if (eomIndex > 0)
             {
-                var response = Packet.ToPacket(stream.ToArray());
+                stream.Write(buffer[..eomIndex], 0, eomIndex);
+                var packet = Packet.ToPacket(stream.ToArray());
+                await HandleResponse(packet);
                 stream.SetLength(0);
-                await HandleResponse(response);
+                stream.Write(buffer[(eomIndex + eomLength)..bytesReceived], 0, bytesReceived - (eomIndex + eomLength));
+
+
+            }
+            else if (bytesReceived > 0)
+            {
+                stream.Write(buffer[..bytesReceived], 0, bytesReceived);
             }
         }
+    }
+
+    private int IndexOfEOM(byte[] buffer, int eomLength)
+    {
+        //Native String.IndexOf() doesn't really work for the EOM so this is a custom one
+        // basically starts searching in the buffer for the bytes 124 and 124 because thats what the EOM starts with
+        // and then checks if the remainder of the 124 124 start matches the EOM bytes and returns the index
+        // if not found returns -1
+        for (int i = 0; i < buffer.Length; i++)
+        {
+            if (buffer[i] == 124 && (i + eomLength) < buffer.Length && buffer[i + 1] == 124)
+            {
+                var potentialEomBytes = buffer[i..(i + eomLength)];
+                var potentialEomString = Encoding.UTF8.GetString(potentialEomBytes);
+
+                if (potentialEomString.Equals("||DropProto-EOM||"))
+                {
+                    return i;
+                }
+            }
+        }
+
+        return -1;
     }
 
     private async Task HandleResponse(Packet response)

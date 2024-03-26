@@ -55,8 +55,6 @@ internal class Server : IHostedService
             if (eomIndex > 0)
             {
                 stream.Write(buffer[..eomIndex], 0, eomIndex);
-                var test = stream.ToArray();
-                _logger.LogInformation(test[0].ToString());
                 var packet = Packet.ToPacket(stream.ToArray());
                 var response = await _packetManager.HandlePacket(packet);
                 stream.SetLength(0);
