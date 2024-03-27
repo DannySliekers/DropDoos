@@ -17,6 +17,7 @@ internal class Client : IHostedService, IDisposable
     private readonly IPEndPoint _endPoint;
     private Timer? _timer;
     private bool initCompleted;
+    private bool downloadCompleted;
 
     public Client(IOptions<PathOptions> config, ILogger<Client> logger)
     {
@@ -25,11 +26,13 @@ internal class Client : IHostedService, IDisposable
         _client = new(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         _config = config.Value;
         initCompleted = false;
+        downloadCompleted = false;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting client");
+        CreateOldFileMap();
         _timer = new Timer(Sync, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
         await _client.ConnectAsync(_endPoint);
 
@@ -46,9 +49,25 @@ internal class Client : IHostedService, IDisposable
         }
     }
 
+    private void CreateOldFileMap()
+    {
+        _logger.LogInformation("Creating backups");
+        var oldFilesPath = _config.ClientFolder + "\\__oldFiles__";
+        Directory.CreateDirectory(oldFilesPath);
+        var currentFiles = Directory.GetFiles(_config.ClientFolder);
+
+        foreach (var file in currentFiles)
+        {
+            if (!System.IO.File.Exists(file))
+            {
+                System.IO.File.Copy(file, Path.Combine(oldFilesPath, Path.GetFileName(file)));
+            }
+        }
+    }
+
     private async void Sync(object? state)
     {
-        if (initCompleted)
+        if (downloadCompleted)
         {
             _logger.LogInformation("Syncing client with server");
             var sync = new Packet() { Command = Command.Sync };
@@ -75,11 +94,9 @@ internal class Client : IHostedService, IDisposable
             {
                 stream.Write(buffer[..eomIndex], 0, eomIndex);
                 var packet = Packet.ToPacket(stream.ToArray());
-                await HandleResponse(packet);
+                await HandleReceive(packet);
                 stream.SetLength(0);
                 stream.Write(buffer[(eomIndex + eomLength)..bytesReceived], 0, bytesReceived - (eomIndex + eomLength));
-
-
             }
             else if (bytesReceived > 0)
             {
@@ -111,11 +128,11 @@ internal class Client : IHostedService, IDisposable
         return -1;
     }
 
-    private async Task HandleResponse(Packet response)
+    private async Task HandleReceive(Packet packet)
     {
         try
         {
-            switch (response.Command)
+            switch (packet.Command)
             {
                 case Command.Connect_Resp:
                     await HandleInit();
@@ -123,11 +140,14 @@ internal class Client : IHostedService, IDisposable
                 case Command.Init_Resp:
                     if (initCompleted)
                     {
-                        WriteToFiles(response);
+                        await SendDownloadRequest();
                     }
                     break;
                 case Command.Sync:
-                    WriteToFiles(response);
+                    WriteToFiles(packet);
+                    break;
+                case Command.Download_Push:
+                    await HandleDownloadPush(packet);
                     break;
             }
         }
@@ -168,6 +188,13 @@ internal class Client : IHostedService, IDisposable
                 _logger.LogError(ex, "Something went wrong while writing to file");
             }
         }
+    }
+
+    private async Task SendDownloadRequest()
+    {
+        _logger.LogInformation("Sending download request");
+        var downloadPacket = new Packet() { Command = Command.Download };
+        await Send(downloadPacket);
     }
 
     private async Task HandleInit()
@@ -217,6 +244,21 @@ internal class Client : IHostedService, IDisposable
         }
 
         initCompleted = true;
+    }
+
+    private async Task HandleDownloadPush(Packet packet)
+    {
+        try
+        {
+            var path = Path.Combine(_config.ClientFolder, packet.File.Name);
+            using FileStream fs = new FileStream(path, FileMode.Append);
+            var data = packet.File.Content;
+            await fs.WriteAsync(data, 0, data.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Something went wrong while writing to file");
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

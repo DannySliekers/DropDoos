@@ -66,7 +66,7 @@ internal class Packet
             Command = packetCommand
         };
 
-        if (packetCommand == Command.Init || packetCommand == Command.Sync)
+        if (packetCommand == Command.Init || packetCommand == Command.Sync || packetCommand == Command.Download_Push)
         {
             var fileName = bytes.Skip(COMMAND_SIZE).Take(FILE_NAME_SIZE).ToArray();
             var packetFileName = Encoding.UTF8.GetString(fileName).Trim('\0');

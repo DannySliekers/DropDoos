@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using DropDoosServer.Queue;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using File = DropDoosServer.Data.File;
 
@@ -8,17 +9,26 @@ internal class FileManager : IFileManager
 {
     private readonly PathConfig _config;
     private readonly ILogger<IFileManager> _logger;
+    private readonly List<string> _initFileNames;
+    private readonly IDownloadQueue _downloadQueue;
 
-    public FileManager(IOptions<PathConfig> config, ILogger<IFileManager> logger)
+    public FileManager(IDownloadQueue downloadQueue, IOptions<PathConfig> config, ILogger<IFileManager> logger)
     {
         _config = config.Value;
         _logger = logger;
+        _initFileNames = new List<string>();
+        _downloadQueue = downloadQueue;
     }
 
     public async Task<long> UploadFile(File file)
     {
         try
         {
+            if (!_initFileNames.Contains(file.Name))
+            {
+                _initFileNames.Add(file.Name);
+            }
+
             var tempPath = _config.ServerFolder + "\\temp\\" + file.Name;
             using FileStream fs = new FileStream(tempPath, FileMode.Append);
             var data = file.Content;
@@ -43,6 +53,57 @@ internal class FileManager : IFileManager
         else
         {
             return false;
+        }
+    }
+
+    public void AddServerFilesToDownloadQueue()
+    {
+        string[] clientFolder = Directory.GetFiles(_config.ServerFolder);
+
+        foreach (var file in clientFolder)
+        {
+            if(_initFileNames.Contains(Path.GetFileName(file)))
+            {
+                continue;
+            }
+
+            long position = 0;
+            var fileSize = new FileInfo(file).Length;
+            while (position <= fileSize)
+            {
+                if (position == fileSize)
+                {
+                    break;
+                }
+
+                using MemoryStream memoryStream = new MemoryStream();
+                using (var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                {
+
+                    while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
+                    {
+                        fileStream.Seek(position, SeekOrigin.Begin);
+                        byte[] buffer = new byte[4096];
+                        int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
+                        memoryStream.Write(buffer, 0, bytesRead);
+                        position += bytesRead;
+
+                        if (bytesRead == 0)
+                        {
+                            break;
+                        }
+                    }
+
+                    var fileToSend = new File()
+                    {
+                        Name = Path.GetFileName(file),
+                        Content = memoryStream.ToArray(),
+                        Size = new FileInfo(file).Length
+                    };
+
+                    _downloadQueue.Add(fileToSend);
+                }
+            }
         }
     }
 

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using DropDoosServer.Managers;
 using DropDoosServer.Data;
 using System.Text;
+using DropDoosServer.Queue;
 
 namespace DropDoosServer;
 
@@ -12,11 +13,13 @@ internal class Server : IHostedService
 {
     private readonly ILogger<Server> _logger;
     private readonly IPacketManager _packetManager;
+    private readonly IDownloadQueue _downloadQueue;
 
-    public Server(IPacketManager packetManager, ILogger<Server> logger)
+    public Server(IPacketManager packetManager, ILogger<Server> logger, IDownloadQueue downloadQueue)
     {
         _logger = logger;
         _packetManager = packetManager;
+        _downloadQueue = downloadQueue;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -29,6 +32,8 @@ internal class Server : IHostedService
         listener.Bind(ipEndPoint);
         listener.Listen(100);
         var handler = await listener.AcceptAsync();
+
+        Task.Factory.StartNew(() => HandleDownloadQueue(handler));
 
         try
         {
@@ -55,7 +60,7 @@ internal class Server : IHostedService
             {
                 stream.Write(buffer[..eomIndex], 0, eomIndex);
                 var packet = Packet.ToPacket(stream.ToArray());
-                var response = await _packetManager.HandlePacket(packet);
+                var response = _packetManager.HandlePacket(packet);
                 stream.SetLength(0);
                 stream.Write(buffer[(eomIndex + eomLength)..bytesReceived], 0, bytesReceived - (eomIndex + eomLength));
 
@@ -107,6 +112,14 @@ internal class Server : IHostedService
         await stream.WriteAsync(totalPackage, 0, totalPackage.Length);
 
         _logger.LogInformation("Finished sending: {command}", packet.Command);
+    }
+
+    private async Task HandleDownloadQueue(Socket handler)
+    {
+        foreach (var packet in _downloadQueue.Get()) 
+        {
+            await Send(handler, packet);
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

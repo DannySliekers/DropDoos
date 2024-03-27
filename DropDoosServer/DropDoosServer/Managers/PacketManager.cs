@@ -1,5 +1,4 @@
-﻿using File = DropDoosServer.Data.File;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using DropDoosServer.Data;
 
 namespace DropDoosServer.Managers;
@@ -15,27 +14,29 @@ internal class PacketManager : IPacketManager
         _fileManager = fileManager;
     }
 
-    public Task<Packet?> HandlePacket(Packet packet)
+    public Packet? HandlePacket(Packet packet)
     {
         switch (packet.Command)
         {
             case Command.Connect:
                 return HandleConnectPacket(packet);
             case Command.Init:
-                return HandleInitPacket(packet);
+                return HandleInitPacket(packet).Result;
             case Command.Sync:
-                //return HandleSyncPacket(packet);
+            //return HandleSyncPacket(packet);
+            case Command.Download:
+                return HandleDownloadPacket(packet);
             default:
                 return null;
         }
     }
 
-    private Task<Packet> HandleConnectPacket(Packet packet)
+    private Packet? HandleConnectPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
         Packet response = new() { Command = Command.Connect_Resp };
         _logger.LogInformation("Sending {command} to client", response.Command);
-        return Task.FromResult(response);
+        return response;
     }
 
     private async Task<Packet?> HandleInitPacket(Packet packet)
@@ -43,12 +44,23 @@ internal class PacketManager : IPacketManager
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
         var doneWithUploading = await HandleUploads(packet);
         Packet? response = null;
+
         if (doneWithUploading)
         {
-            // TODO: add files
             response = new() { Command = Command.Init_Resp };
             _logger.LogInformation("Sending {command} to client", response.Command);
         }
+
+        return response;
+    }
+
+    private Packet? HandleDownloadPacket(Packet packet)
+    {
+        _logger.LogInformation("Socket server received message: {command}", packet.Command);
+        _fileManager.AddServerFilesToDownloadQueue();
+        var response = new Packet() { Command = Command.Download_Resp };
+        _logger.LogInformation("Sending {command} to client", response.Command);
+
         return response;
     }
 
