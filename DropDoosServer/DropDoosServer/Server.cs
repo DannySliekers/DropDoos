@@ -116,9 +116,13 @@ internal class Server : IHostedService
 
     private async Task HandleDownloadQueue(Socket handler)
     {
-        foreach (var packet in _downloadQueue.Get()) 
+        while (true)
         {
-            await Send(handler, packet);
+            var packet = _downloadQueue.Get();
+            if (packet != null)
+            {
+                await Send(handler, packet);
+            }
         }
     }
 

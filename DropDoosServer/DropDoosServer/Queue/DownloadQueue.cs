@@ -6,21 +6,22 @@ namespace DropDoosServer.Queue;
 
 internal class DownloadQueue : IDownloadQueue
 {
-    private readonly BlockingCollection<Packet> _downloadQueue;
+    private readonly ConcurrentQueue<Packet> _downloadQueue;
 
     public DownloadQueue()
     {
-        _downloadQueue = new BlockingCollection<Packet>();
+        _downloadQueue = new ConcurrentQueue<Packet>();
     }
 
     public void Add(File file)
     {
         var downloadPush = new Packet() { Command = Command.Download_Push, File = file };
-        _downloadQueue.Add(downloadPush);
+        _downloadQueue.Enqueue(downloadPush);
     }
 
-    public IEnumerable<Packet> Get()
+    public Packet? Get()
     {
-        return _downloadQueue.GetConsumingEnumerable();
+        _downloadQueue.TryDequeue(out var packet);
+        return packet;
     }
 }

@@ -25,7 +25,8 @@ internal class PacketManager : IPacketManager
             case Command.Sync:
             //return HandleSyncPacket(packet);
             case Command.Download:
-                return HandleDownloadPacket(packet);
+                HandleDownloadPacket(packet);
+                return null;
             default:
                 return null;
         }
@@ -54,14 +55,10 @@ internal class PacketManager : IPacketManager
         return response;
     }
 
-    private Packet? HandleDownloadPacket(Packet packet)
+    private void HandleDownloadPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
         _fileManager.AddServerFilesToDownloadQueue();
-        var response = new Packet() { Command = Command.Download_Resp };
-        _logger.LogInformation("Sending {command} to client", response.Command);
-
-        return response;
     }
 
     //private Packet HandleSyncPacket(Packet packet)

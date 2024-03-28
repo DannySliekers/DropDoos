@@ -6,5 +6,5 @@ namespace DropDoosServer.Queue;
 internal interface IDownloadQueue
 {
     public void Add(File file);
-    public IEnumerable<Packet> Get();
+    public Packet? Get();
 }

@@ -16,7 +16,7 @@ internal class Client : IHostedService, IDisposable
     private readonly Socket _client;
     private readonly IPEndPoint _endPoint;
     private Timer? _timer;
-    private bool initCompleted;
+    private bool downloadRequestSent;
     private bool downloadCompleted;
 
     public Client(IOptions<PathOptions> config, ILogger<Client> logger)
@@ -25,7 +25,7 @@ internal class Client : IHostedService, IDisposable
         _endPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
         _client = new(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         _config = config.Value;
-        initCompleted = false;
+        downloadRequestSent = false;
         downloadCompleted = false;
     }
 
@@ -58,9 +58,10 @@ internal class Client : IHostedService, IDisposable
 
         foreach (var file in currentFiles)
         {
-            if (!System.IO.File.Exists(file))
+            var oldFilesPathFile = Path.Combine(oldFilesPath, Path.GetFileName(file));
+            if (!System.IO.File.Exists(oldFilesPathFile))
             {
-                System.IO.File.Copy(file, Path.Combine(oldFilesPath, Path.GetFileName(file)));
+                System.IO.File.Copy(file, oldFilesPathFile);
             }
         }
     }
@@ -138,8 +139,9 @@ internal class Client : IHostedService, IDisposable
                     await HandleInit();
                     break;
                 case Command.Init_Resp:
-                    if (initCompleted)
+                    if (!downloadRequestSent)
                     {
+                        downloadRequestSent = true;
                         await SendDownloadRequest();
                     }
                     break;
@@ -242,8 +244,6 @@ internal class Client : IHostedService, IDisposable
                 }
             }
         }
-
-        initCompleted = true;
     }
 
     private async Task HandleDownloadPush(Packet packet)

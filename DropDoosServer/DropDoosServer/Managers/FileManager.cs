@@ -42,27 +42,13 @@ internal class FileManager : IFileManager
         }
     }
 
-    public bool CheckIfContentEqual(File file)
-    {
-        var serverFiles = BuildServerFileList();
-        var serverFile = serverFiles.Find(f => f.Name.Equals(file.Name));
-        if (serverFile != null)
-        {
-            return serverFile.Content.Equals(file.Content);
-        }
-        else
-        {
-            return false;
-        }
-    }
-
     public void AddServerFilesToDownloadQueue()
     {
-        string[] clientFolder = Directory.GetFiles(_config.ServerFolder);
+        string[] serverFolder = Directory.GetFiles(_config.ServerFolder);
 
-        foreach (var file in clientFolder)
+        foreach (var file in serverFolder)
         {
-            if(_initFileNames.Contains(Path.GetFileName(file)))
+            if (_initFileNames.Contains(Path.GetFileName(file)))
             {
                 continue;
             }
@@ -105,32 +91,5 @@ internal class FileManager : IFileManager
                 }
             }
         }
-    }
-
-    public List<File> BuildDownloadList(List<File> fileList)
-    {
-        var serverFiles = BuildServerFileList();
-        return serverFiles.Where(f => !fileList.Any(of => of.Name == f.Name)).ToList();
-    }
-
-    private List<File> BuildServerFileList()
-    {
-        try
-        {
-            var serverFileList = new List<File>();
-            var serverFiles = Directory.GetFiles(_config.ServerFolder).ToList();
-            foreach (var file in serverFiles)
-            {
-                var content = System.IO.File.ReadAllBytes(file);
-                serverFileList.Add(new File() { Name = Path.GetFileName(file), Content = content, Size = new FileInfo(file).Length });
-            }
-            return serverFileList;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Something went wrong while building server file list");
-        }
-
-        return new List<File>();
     }
 }
