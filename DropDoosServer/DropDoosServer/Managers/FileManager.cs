@@ -42,9 +42,15 @@ internal class FileManager : IFileManager
         }
     }
 
+    public int GetNumberOfFiles()
+    {
+        return Directory.GetFiles(_config.ServerFolder).Except(_initFileNames).Count();
+    }
+
     public void AddServerFilesToDownloadQueue()
     {
         string[] serverFolder = Directory.GetFiles(_config.ServerFolder);
+        int fileNumber = 1;
 
         foreach (var file in serverFolder)
         {
@@ -79,15 +85,17 @@ internal class FileManager : IFileManager
                             break;
                         }
                     }
-
+                    
                     var fileToSend = new File()
                     {
                         Name = Path.GetFileName(file),
                         Content = memoryStream.ToArray(),
-                        Size = new FileInfo(file).Length
+                        Size = new FileInfo(file).Length,
+                        FileNumber = fileNumber
                     };
 
                     _downloadQueue.Add(fileToSend);
+                    fileNumber++;
                 }
             }
         }
