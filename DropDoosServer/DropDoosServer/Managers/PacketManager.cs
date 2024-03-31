@@ -16,62 +16,59 @@ internal class PacketManager : IPacketManager
 
     public Packet? HandlePacket(Packet packet)
     {
+        _logger.LogInformation("Socket server received message: {command}", packet.Command);
         switch (packet.Command)
         {
             case Command.Connect:
-                return HandleConnectPacket(packet);
+                return HandleConnectPacket();
             case Command.Init:
-                return HandleInitSyncPacket(packet, Command.Init_Resp).Result;
-            case Command.Sync:
-                return HandleInitSyncPacket(packet, Command.Sync_Resp).Result;
+                return HandleInitPacket(packet);
             case Command.Download:
-                HandleDownloadSyncPacket(packet);
-                return null;
+                return HandleDownloadPacket(packet);
+            case Command.Upload:
+                return HandleUploadPacket(packet).Result;
             default:
                 return null;
         }
     }
 
-    private Packet? HandleConnectPacket(Packet packet)
+    private Packet HandleInitPacket(Packet packet)
     {
-        _logger.LogInformation("Socket server received message: {command}", packet.Command);
+        var fileList = packet.FileList;
+        var fileNames = _fileManager.GetFileNames();
+
+        foreach (var file in fileList.ToList())
+        {
+            if (fileNames.Contains(file))
+            {
+                fileList.Remove(file);
+                fileNames.Remove(file);
+            } 
+        }
+
+        var finalList = fileList.Concat(fileNames).ToList();
+        var response = new Packet() { Command = Command.Init_Resp, FileList = finalList };
+        return response;
+    }
+
+    private Packet HandleConnectPacket()
+    {
         Packet response = new() { Command = Command.Connect_Resp };
         _logger.LogInformation("Sending {command} to client", response.Command);
         return response;
     }
 
-    private async Task<Packet?> HandleInitSyncPacket(Packet packet, Command command)
+    private Packet HandleDownloadPacket(Packet packet)
     {
-        _logger.LogInformation("Socket server received message: {command}", packet.Command);
-        var doneWithUploading = await HandleUploads(packet);
-        Packet? response = null;
-
-        if (doneWithUploading)
-        {
-            _fileManager.ClearTempFolder(packet.File.Name);
-            response = new() { Command = command };
-            _logger.LogInformation("Sending {command} to client", response.Command);
-        }
-
+        var file = _fileManager.GetFile(packet.File.Name, packet.File.Position);
+        var response = new Packet() { Command = Command.Download_Resp, File = file };
         return response;
     }
 
-    private void HandleDownloadSyncPacket(Packet packet)
+    private async Task<Packet> HandleUploadPacket(Packet packet)
     {
-        _logger.LogInformation("Socket server received message: {command}", packet.Command);
-        _fileManager.AddServerFilesToDownloadQueue();
-    }
-
-    private async Task<bool> HandleUploads(Packet packet)
-    {
-        bool doneWithUploading = true;
-        var serverFileSize =  await _fileManager.UploadFile(packet.File);
-
-        if (packet.File.Size != serverFileSize)
-        {
-            doneWithUploading = false;
-        }
-
-        return doneWithUploading;
+        await _fileManager.UploadFile(packet.File);
+        var response = new Packet() { Command = Command.Upload_Resp };
+        return response;
     }
 }

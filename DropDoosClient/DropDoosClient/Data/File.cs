@@ -3,7 +3,7 @@
 internal class File
 {
     public required string Name { get; set; }
-    public required byte[] Content { get; set; }
-    public required long Size { get; set; }
-    public required int FileNumber { get; set; }
+    public string? Content { get; set; }
+    public long Size { get; set; }
+    public long Position { get; set; }
 }

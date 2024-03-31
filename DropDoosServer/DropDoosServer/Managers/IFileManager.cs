@@ -4,7 +4,8 @@ namespace DropDoosServer.Managers;
 
 internal interface IFileManager
 {
-    Task<long> UploadFile(File file);
-    void AddServerFilesToDownloadQueue();
+    Task UploadFile(File file);
     void ClearTempFolder(string fileName);
+    List<string> GetFileNames();
+    File GetFile(string fileName, long position);
 }

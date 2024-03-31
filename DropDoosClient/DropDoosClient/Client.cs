@@ -16,8 +16,9 @@ internal class Client : IHostedService, IDisposable
     private readonly Socket _client;
     private readonly IPEndPoint _endPoint;
     private Timer? _timer;
-    private bool downloadRequestSent;
-    private bool downloadCompleted;
+    private List<string> downloadList;
+    private List<string> uploadList;
+    private bool initialUploadCompleted;
 
     public Client(IOptions<PathOptions> config, ILogger<Client> logger)
     {
@@ -25,8 +26,9 @@ internal class Client : IHostedService, IDisposable
         _endPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
         _client = new(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         _config = config.Value;
-        downloadRequestSent = false;
-        downloadCompleted = false;
+        downloadList = new List<string>();
+        uploadList = new List<string>();
+        initialUploadCompleted = false;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -68,10 +70,9 @@ internal class Client : IHostedService, IDisposable
 
     private async void Sync(object? state)
     {
-        if (downloadCompleted)
+        if (initialUploadCompleted)
         {
             _logger.LogInformation("Syncing client with server");
-            await HandleFileSending(Command.Sync);
         } 
         else
         {
@@ -131,21 +132,20 @@ internal class Client : IHostedService, IDisposable
 
     private async Task HandleReceive(Packet packet)
     {
+        _logger.LogInformation("Client received packet with command: {command}", packet.Command);
+
         try
         {
             switch (packet.Command)
             {
                 case Command.Connect_Resp:
-                    await HandleFileSending(Command.Init);
+                    await HandleConnectResp();
                     break;
                 case Command.Init_Resp:
-                    await HandleInitSyncResp();
+                    await HandleInitResp(packet);
                     break;
-                case Command.Sync_Resp:
-                    await HandleInitSyncResp();
-                    break;
-                case Command.Download_Push:
-                    await HandleDownloadPush(packet);
+                case Command.Download_Resp:
+                    await HandleDownloadResp(packet);
                     break;
             }
         }
@@ -156,13 +156,39 @@ internal class Client : IHostedService, IDisposable
 
     }
 
-    private async Task HandleInitSyncResp()
+    private async Task HandleConnectResp()
     {
-        if (!downloadRequestSent)
+        var fileList = GetFileNames();
+        var packet = new Packet() { Command = Command.Init, FileList = fileList };
+        await Send(packet);
+    }
+
+    private async Task HandleInitResp(Packet packet)
+    {
+        downloadList = packet.FileList.Except(GetFileNames()).ToList();
+        uploadList = packet.FileList.Except(downloadList).ToList();
+        if (downloadList.Count > 0)
         {
-            downloadRequestSent = true;
-            await SendDownloadRequest();
+            var downloadPacket = new Packet() { Command = Command.Download, File = new File() { Name = downloadList.First(), Position = 0 } };
+            await Send(downloadPacket);
         }
+        else
+        {
+            await HandleUploads(uploadList);
+        }
+    }
+
+    private List<string> GetFileNames()
+    {
+        var fileNames = new List<string>();
+        var fileList = Directory.GetFiles(_config.ClientFolder);
+
+        foreach(var file in fileList)
+        {
+            fileNames.Add(Path.GetFileName(file));    
+        }
+
+        return fileNames;
     }
 
     private async Task Send(Packet packet)
@@ -180,22 +206,13 @@ internal class Client : IHostedService, IDisposable
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
 
-    private async Task SendDownloadRequest()
+    private async Task HandleUploads(List<string> uploadFiles)
     {
-        _logger.LogInformation("Sending download request");
-        var downloadPacket = new Packet() { Command = Command.Download };
-        await Send(downloadPacket);
-    }
-
-    private async Task HandleFileSending(Command command)
-    {
-        string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
-
-        foreach (var file in clientFolder)
+        foreach (var file in uploadFiles)
         {
+            var path = Path.Combine(_config.ClientFolder, file);
             long position = 0;
-            var fileSize = new FileInfo(file).Length;
-            int fileNumber = 1;
+            var fileSize = new FileInfo(path).Length;
             while (position <= fileSize)
             {
                 if (position == fileSize)
@@ -204,7 +221,7 @@ internal class Client : IHostedService, IDisposable
                 }
 
                 using MemoryStream memoryStream = new MemoryStream();
-                using (var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read))
+                using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
 
                     while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
@@ -223,33 +240,45 @@ internal class Client : IHostedService, IDisposable
 
                     var fileToSend = new File()
                     {
-                        Name = Path.GetFileName(file),
-                        Content = memoryStream.ToArray(),
-                        Size = new FileInfo(file).Length,
-                        FileNumber = fileNumber,
+                        Name = file,
+                        Content = Convert.ToBase64String(memoryStream.ToArray()),
+                        Size = new FileInfo(path).Length,
                     };
 
-                    var packet = new Packet() { Command = command, TotalNumberOfFiles = clientFolder.Length, File = fileToSend };
+                    var packet = new Packet() { Command = Command.Upload, File = fileToSend };
                     await Send(packet);
                 }
             }
-            fileNumber++;
         }
+        initialUploadCompleted = true;
     }
 
-    private async Task HandleDownloadPush(Packet packet)
+    private async Task HandleDownloadResp(Packet packet)
     {
         try
         {
             var path = Path.Combine(_config.ClientFolder, packet.File.Name);
             using FileStream fs = new FileStream(path, FileMode.Append);
-            var data = packet.File.Content;
+            var data = Convert.FromBase64String(packet.File.Content);
             await fs.WriteAsync(data, 0, data.Length);
+            var actualSize = new FileInfo(path).Length;
 
-            if (packet.File.FileNumber == packet.TotalNumberOfFiles && new FileInfo(path).Length == packet.File.Size)
+            if (actualSize != packet.File.Size)
             {
-                downloadCompleted = true;
-                downloadRequestSent = false;
+                var downloadPacket = new Packet() { Command = Command.Download, File = new File() {Name = packet.File.Name, Position = actualSize } };
+                await Send(downloadPacket);
+            } 
+            else if (downloadList.Count == 1)
+            {
+                _logger.LogInformation("Done with downloading, starting uploading");
+                downloadList.Remove(packet.File.Name);
+                HandleUploads(uploadList);
+            }
+            else
+            {
+                downloadList.Remove(packet.File.Name);
+                var downloadPacket = new Packet() { Command = Command.Download, File = new File() { Name = downloadList.First(), Position = 0 } };
+                await Send(downloadPacket);
             }
         }
         catch (Exception ex)

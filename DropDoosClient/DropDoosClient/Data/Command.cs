@@ -10,5 +10,6 @@ enum Command
     Sync_Resp = 6,
     Download = 7,
     Download_Resp = 8,
-    Download_Push = 9
+    Upload = 9, 
+    Upload_Resp = 10
 }
