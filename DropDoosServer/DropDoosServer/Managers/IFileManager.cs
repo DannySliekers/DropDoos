@@ -6,5 +6,4 @@ internal interface IFileManager
 {
     Task<long> UploadFile(File file);
     void AddServerFilesToDownloadQueue();
-    int GetNumberOfFiles();
 }

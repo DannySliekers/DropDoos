@@ -73,7 +73,7 @@ internal class Packet
             var packetFileName = Encoding.UTF8.GetString(fileName).Trim('\0');
             var fileSize = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE).Take(FILE_SIZE_SIZE).ToArray();
             var packetFileSize = BitConverter.ToInt64(fileSize);
-            var fileNumber = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE).Take(FILE_NUMBER_SIZE).ToArray();
+            var fileNumber = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE).Take(FILE_NUMBER_SIZE).ToArray();
             var packetFileNumber = BitConverter.ToInt32(fileNumber);
             var fileContent = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE + FILE_NUMBER_SIZE)
                 .Take(bytes.Length - COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE + FILE_NUMBER_SIZE).ToArray();

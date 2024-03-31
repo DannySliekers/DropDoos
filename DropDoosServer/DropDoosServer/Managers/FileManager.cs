@@ -42,11 +42,6 @@ internal class FileManager : IFileManager
         }
     }
 
-    public int GetNumberOfFiles()
-    {
-        return Directory.GetFiles(_config.ServerFolder).Except(_initFileNames).Count();
-    }
-
     public void AddServerFilesToDownloadQueue()
     {
         string[] serverFolder = Directory.GetFiles(_config.ServerFolder);
@@ -94,10 +89,11 @@ internal class FileManager : IFileManager
                         FileNumber = fileNumber
                     };
 
-                    _downloadQueue.Add(fileToSend);
-                    fileNumber++;
+                    int totalNumberOfFiles = Directory.GetFiles(_config.ServerFolder).Except(_initFileNames).Count();
+                    _downloadQueue.Add(fileToSend, totalNumberOfFiles);
                 }
             }
+            fileNumber++;
         }
     }
 }

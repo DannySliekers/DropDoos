@@ -7,6 +7,7 @@ internal class Packet
     public required Command Command { get; set; }
     public File? File { get; set; }
     public int TotalNumberOfFiles { get; set; }
+
     private const int COMMAND_SIZE = 4;
     private const int FILE_NAME_SIZE = 255;
     private const int FILE_SIZE_SIZE = 8;
@@ -67,13 +68,13 @@ internal class Packet
             TotalNumberOfFiles = packetTotalNumberOfFiles
         };
 
-        if (packetCommand == Command.Init || packetCommand == Command.Sync)
+        if (packetCommand == Command.Init || packetCommand == Command.Download_Push)
         {
             var fileName = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE).Take(FILE_NAME_SIZE).ToArray();
             var packetFileName = Encoding.UTF8.GetString(fileName).Trim('\0');
             var fileSize = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE).Take(FILE_SIZE_SIZE).ToArray();
             var packetFileSize = BitConverter.ToInt64(fileSize);
-            var fileNumber = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE).Take(FILE_NUMBER_SIZE).ToArray();
+            var fileNumber = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE).Take(FILE_NUMBER_SIZE).ToArray();
             var packetFileNumber = BitConverter.ToInt32(fileNumber);
             var fileContent = bytes.Skip(COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE + FILE_NUMBER_SIZE)
                 .Take(bytes.Length - COMMAND_SIZE + TOTAL_NUMBER_OF_FILES_SIZE + FILE_NAME_SIZE + FILE_SIZE_SIZE + FILE_NUMBER_SIZE).ToArray();

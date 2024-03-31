@@ -71,9 +71,9 @@ internal class Client : IHostedService, IDisposable
         if (downloadCompleted)
         {
             _logger.LogInformation("Syncing client with server");
-            var sync = new Packet() { Command = Command.Sync };
-            await Send(sync);
-        } else
+            await HandleFileSending(Command.Sync);
+        } 
+        else
         {
             _logger.LogInformation("Waiting for init to complete before syncing with server");
         }
@@ -136,17 +136,13 @@ internal class Client : IHostedService, IDisposable
             switch (packet.Command)
             {
                 case Command.Connect_Resp:
-                    await HandleInit();
+                    await HandleFileSending(Command.Init);
                     break;
                 case Command.Init_Resp:
-                    if (!downloadRequestSent)
-                    {
-                        downloadRequestSent = true;
-                        await SendDownloadRequest();
-                    }
+                    await HandleInitSyncResp();
                     break;
-                case Command.Sync:
-                    WriteToFiles(packet);
+                case Command.Sync_Resp:
+                    await HandleInitSyncResp();
                     break;
                 case Command.Download_Push:
                     await HandleDownloadPush(packet);
@@ -158,6 +154,15 @@ internal class Client : IHostedService, IDisposable
             _logger.LogError(ex, "Something went wrong while getting client files");
         }
 
+    }
+
+    private async Task HandleInitSyncResp()
+    {
+        if (!downloadRequestSent)
+        {
+            downloadRequestSent = true;
+            await SendDownloadRequest();
+        }
     }
 
     private async Task Send(Packet packet)
@@ -175,23 +180,6 @@ internal class Client : IHostedService, IDisposable
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
 
-    private void WriteToFiles(Packet response)
-    {
-        foreach (var field in response.optionalFields)
-        {
-            try
-            {
-                using FileStream fs = System.IO.File.Create(_config.ClientFolder + "\\" + field.Key);
-                byte[] info = new UTF8Encoding(true).GetBytes(field.Value);
-                fs.Write(info, 0, info.Length);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Something went wrong while writing to file");
-            }
-        }
-    }
-
     private async Task SendDownloadRequest()
     {
         _logger.LogInformation("Sending download request");
@@ -199,7 +187,7 @@ internal class Client : IHostedService, IDisposable
         await Send(downloadPacket);
     }
 
-    private async Task HandleInit()
+    private async Task HandleFileSending(Command command)
     {
         string[] clientFolder = Directory.GetFiles(_config.ClientFolder);
 
@@ -207,6 +195,7 @@ internal class Client : IHostedService, IDisposable
         {
             long position = 0;
             var fileSize = new FileInfo(file).Length;
+            int fileNumber = 1;
             while (position <= fileSize)
             {
                 if (position == fileSize)
@@ -236,13 +225,15 @@ internal class Client : IHostedService, IDisposable
                     {
                         Name = Path.GetFileName(file),
                         Content = memoryStream.ToArray(),
-                        Size = new FileInfo(file).Length
+                        Size = new FileInfo(file).Length,
+                        FileNumber = fileNumber,
                     };
 
-                    var init = new Packet() { Command = Command.Init, File = fileToSend };
-                    await Send(init);
+                    var packet = new Packet() { Command = command, TotalNumberOfFiles = clientFolder.Length, File = fileToSend };
+                    await Send(packet);
                 }
             }
+            fileNumber++;
         }
     }
 
@@ -254,6 +245,12 @@ internal class Client : IHostedService, IDisposable
             using FileStream fs = new FileStream(path, FileMode.Append);
             var data = packet.File.Content;
             await fs.WriteAsync(data, 0, data.Length);
+
+            if (packet.File.FileNumber == packet.TotalNumberOfFiles && new FileInfo(path).Length == packet.File.Size)
+            {
+                downloadCompleted = true;
+                downloadRequestSent = false;
+            }
         }
         catch (Exception ex)
         {

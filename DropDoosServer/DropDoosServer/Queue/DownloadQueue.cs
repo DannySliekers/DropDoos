@@ -7,18 +7,15 @@ namespace DropDoosServer.Queue;
 
 internal class DownloadQueue : IDownloadQueue
 {
-    private readonly IFileManager _fileManager;
     private readonly ConcurrentQueue<Packet> _downloadQueue;
 
-    public DownloadQueue(IFileManager fileManager)
+    public DownloadQueue()
     {
         _downloadQueue = new ConcurrentQueue<Packet>();
-        _fileManager = fileManager;
     }
 
-    public void Add(File file)
+    public void Add(File file, int totalNumberOfFiles)
     {
-        var totalNumberOfFiles = _fileManager.GetNumberOfFiles();
         var downloadPush = new Packet() { Command = Command.Download_Push, File = file, TotalNumberOfFiles = totalNumberOfFiles };
         _downloadQueue.Enqueue(downloadPush);
     }

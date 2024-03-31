@@ -21,11 +21,11 @@ internal class PacketManager : IPacketManager
             case Command.Connect:
                 return HandleConnectPacket(packet);
             case Command.Init:
-                return HandleInitPacket(packet).Result;
+                return HandleInitSyncPacket(packet, Command.Init_Resp).Result;
             case Command.Sync:
-            //return HandleSyncPacket(packet);
+                return HandleInitSyncPacket(packet, Command.Sync_Resp).Result;
             case Command.Download:
-                HandleDownloadPacket(packet);
+                HandleDownloadSyncPacket(packet);
                 return null;
             default:
                 return null;
@@ -40,7 +40,7 @@ internal class PacketManager : IPacketManager
         return response;
     }
 
-    private async Task<Packet?> HandleInitPacket(Packet packet)
+    private async Task<Packet?> HandleInitSyncPacket(Packet packet, Command command)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
         var doneWithUploading = await HandleUploads(packet);
@@ -48,51 +48,18 @@ internal class PacketManager : IPacketManager
 
         if (doneWithUploading)
         {
-            response = new() { Command = Command.Init_Resp };
+            response = new() { Command = command };
             _logger.LogInformation("Sending {command} to client", response.Command);
         }
 
         return response;
     }
 
-    private void HandleDownloadPacket(Packet packet)
+    private void HandleDownloadSyncPacket(Packet packet)
     {
         _logger.LogInformation("Socket server received message: {command}", packet.Command);
         _fileManager.AddServerFilesToDownloadQueue();
     }
-
-    //private Packet HandleSyncPacket(Packet packet)
-    //{
-    //    _logger.LogInformation("Socket server received message: {command}", packet.Command);
-    //    var optionalFields = Sync(packet);
-    //    Packet response = new() { Command = Command.Sync_Resp, optionalFields = optionalFields };
-    //    _logger.LogInformation("Sending {command} to client", response.Command);
-    //    return response;
-    //}
-
-    //private List<File> Sync(Packet packet)
-    //{
-    //    HandleUploads(packet);
-    //    List<File> downloadList = HandleDownloads(packet);
-    //    var optionalFields = new Dictionary<string, string>();
-    //    downloadList.ForEach(file =>
-    //    {
-    //        optionalFields.Add(file.Name, file.Content);
-    //    });
-
-    //    return optionalFields;
-    //}
-
-    //private List<File> HandleDownloads(Packet packet)
-    //{
-    //    var fileList = new List<File>();
-    //    foreach (var field in packet.optionalFields)
-    //    {
-    //        var file = new File() { Name = field.Key, Content = field.Value };
-    //        fileList.Add(file);
-    //    }
-    //    return _fileManager.BuildDownloadList(fileList);
-    //}
 
     private async Task<bool> HandleUploads(Packet packet)
     {
