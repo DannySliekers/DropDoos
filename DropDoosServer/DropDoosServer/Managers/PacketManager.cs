@@ -48,6 +48,7 @@ internal class PacketManager : IPacketManager
 
         if (doneWithUploading)
         {
+            _fileManager.ClearTempFolder(packet.File.Name);
             response = new() { Command = command };
             _logger.LogInformation("Sending {command} to client", response.Command);
         }

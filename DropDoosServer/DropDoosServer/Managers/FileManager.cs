@@ -96,4 +96,12 @@ internal class FileManager : IFileManager
             fileNumber++;
         }
     }
+
+    public void ClearTempFolder(string fileName)
+    {
+        var tempPath = _config.ServerFolder + "\\temp\\" + fileName;
+        var serverPath = Path.Combine(_config.ServerFolder, fileName);
+        System.IO.File.Copy(tempPath, serverPath, true);
+        System.IO.File.Delete(tempPath);
+    }
 }
