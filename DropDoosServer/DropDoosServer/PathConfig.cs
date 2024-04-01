@@ -1,6 +1,6 @@
 ﻿namespace DropDoosServer;
 
-internal class PathConfig
+public class PathConfig
 {
     public required string ServerFolder {  get; set; }
 }

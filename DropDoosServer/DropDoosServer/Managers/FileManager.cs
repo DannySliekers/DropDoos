@@ -4,7 +4,7 @@ using File = DropDoosServer.Data.File;
 
 namespace DropDoosServer.Managers;
 
-internal class FileManager : IFileManager
+public class FileManager : IFileManager
 {
     private readonly PathConfig _config;
     private readonly ILogger<IFileManager> _logger;
@@ -28,14 +28,6 @@ internal class FileManager : IFileManager
         {
             _logger.LogError(ex, "Something went wrong while writing to file");
         }
-    }
-
-    public void ClearTempFolder(string fileName)
-    {
-        var tempPath = _config.ServerFolder + "\\temp\\" + fileName;
-        var serverPath = Path.Combine(_config.ServerFolder, fileName);
-        System.IO.File.Copy(tempPath, serverPath, true);
-        System.IO.File.Delete(tempPath);
     }
 
     public List<string> GetFileNames()
