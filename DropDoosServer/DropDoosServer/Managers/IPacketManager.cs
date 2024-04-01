@@ -2,7 +2,7 @@
 
 namespace DropDoosServer.Managers;
 
-internal interface IPacketManager
+public interface IPacketManager
 {
     Packet? HandlePacket(Packet packet);
 }

@@ -1,6 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DropDoosServer", "DropDoosServer\DropDoosServer.csproj", "{7F23E04B-6725-4AF2-971B-A684BA6D7F83}"
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34031.279
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DropDoosServer", "DropDoosServer\DropDoosServer.csproj", "{7F23E04B-6725-4AF2-971B-A684BA6D7F83}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DropDoosServerTests", "DropDoosServer.Tests\DropDoosServerTests.csproj", "{7355D674-3EC9-456B-A929-9ABE5AD691EC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,5 +17,15 @@ Global
 		{7F23E04B-6725-4AF2-971B-A684BA6D7F83}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7F23E04B-6725-4AF2-971B-A684BA6D7F83}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7F23E04B-6725-4AF2-971B-A684BA6D7F83}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7355D674-3EC9-456B-A929-9ABE5AD691EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7355D674-3EC9-456B-A929-9ABE5AD691EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7355D674-3EC9-456B-A929-9ABE5AD691EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7355D674-3EC9-456B-A929-9ABE5AD691EC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E0E3FA01-5611-4C8E-AAB4-7B9D4EB5CF04}
 	EndGlobalSection
 EndGlobal

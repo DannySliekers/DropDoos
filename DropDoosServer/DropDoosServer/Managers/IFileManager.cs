@@ -2,7 +2,7 @@
 
 namespace DropDoosServer.Managers;
 
-internal interface IFileManager
+public interface IFileManager
 {
     Task UploadFile(File file);
     void ClearTempFolder(string fileName);

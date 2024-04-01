@@ -1,4 +1,4 @@
-﻿enum Command
+﻿public enum Command
 {
     Connect = 1,
     Connect_Resp = 2,

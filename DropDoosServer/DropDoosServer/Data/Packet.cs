@@ -3,7 +3,7 @@ using System.Text;
 
 namespace DropDoosServer.Data;
 
-internal class Packet
+public class Packet
 {
     public required Command Command { get; set; }
     public File? File { get; set; }

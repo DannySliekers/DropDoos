@@ -1,6 +1,6 @@
 ﻿namespace DropDoosServer.Data;
 
-internal class File
+public class File
 {
     public required string Name { get; set; }
     public string? Content { get; set; }

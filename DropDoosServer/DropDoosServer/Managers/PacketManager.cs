@@ -1,10 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 using DropDoosServer.Data;
-using System.Net.Sockets;
 
 namespace DropDoosServer.Managers;
 
-internal class PacketManager : IPacketManager
+public class PacketManager : IPacketManager
 {
     private readonly ILogger<IFileManager> _logger;
     private readonly IFileManager _fileManager;
