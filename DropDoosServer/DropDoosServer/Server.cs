@@ -28,15 +28,10 @@ internal class Server : IHostedService
 
         listener.Bind(ipEndPoint);
         listener.Listen(100);
-        var handler = await listener.AcceptAsync();
-
-        try
+        while(true)
         {
-            await Receive(handler, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Something went wrong while receiving");
+            var handler = await listener.AcceptAsync();
+            Task.Run(async () => await Receive(handler, cancellationToken));
         }
     }
 
