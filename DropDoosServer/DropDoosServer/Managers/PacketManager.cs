@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using DropDoosServer.Data;
+using System.Net.Sockets;
 
 namespace DropDoosServer.Managers;
 
@@ -27,27 +28,24 @@ internal class PacketManager : IPacketManager
                 return HandleDownloadPacket(packet);
             case Command.Upload:
                 return HandleUploadPacket(packet).Result;
+            case Command.Sync:
+                return HandleSyncPacket(packet);
             default:
                 return null;
         }
     }
 
+    private Packet HandleSyncPacket(Packet packet)
+    {
+        var fileList = PrepareFileList(packet.FileList);
+        var response = new Packet() { Command = Command.Sync_Resp, FileList = fileList };
+        return response;
+    }
+
     private Packet HandleInitPacket(Packet packet)
     {
-        var fileList = packet.FileList;
-        var fileNames = _fileManager.GetFileNames();
-
-        foreach (var file in fileList.ToList())
-        {
-            if (fileNames.Contains(file))
-            {
-                fileList.Remove(file);
-                fileNames.Remove(file);
-            } 
-        }
-
-        var finalList = fileList.Concat(fileNames).ToList();
-        var response = new Packet() { Command = Command.Init_Resp, FileList = finalList };
+        var fileList = PrepareFileList(packet.FileList);
+        var response = new Packet() { Command = Command.Init_Resp, FileList = fileList };
         return response;
     }
 
@@ -70,5 +68,22 @@ internal class PacketManager : IPacketManager
         await _fileManager.UploadFile(packet.File);
         var response = new Packet() { Command = Command.Upload_Resp };
         return response;
+    }
+
+    private List<string> PrepareFileList(List<string> fileList)
+    {
+        var fileNames = _fileManager.GetFileNames();
+
+        foreach (var file in fileList.ToList())
+        {
+            if (fileNames.Contains(file))
+            {
+                fileList.Remove(file);
+                fileNames.Remove(file);
+            }
+        }
+
+        var finalList = fileList.Concat(fileNames).ToList();
+        return finalList;
     }
 }

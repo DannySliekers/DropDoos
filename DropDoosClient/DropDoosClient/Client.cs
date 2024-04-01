@@ -18,7 +18,7 @@ internal class Client : IHostedService, IDisposable
     private Timer? _timer;
     private List<string> downloadList;
     private List<string> uploadList;
-    private bool initialUploadCompleted;
+    private bool uploadCompleted;
 
     public Client(IOptions<PathOptions> config, ILogger<Client> logger)
     {
@@ -28,7 +28,7 @@ internal class Client : IHostedService, IDisposable
         _config = config.Value;
         downloadList = new List<string>();
         uploadList = new List<string>();
-        initialUploadCompleted = false;
+        uploadCompleted = false;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -70,9 +70,13 @@ internal class Client : IHostedService, IDisposable
 
     private async void Sync(object? state)
     {
-        if (initialUploadCompleted)
+        if (uploadCompleted)
         {
+            uploadCompleted = false;
             _logger.LogInformation("Syncing client with server");
+            var fileList = GetFileNames();
+            var packet = new Packet() { Command = Command.Sync, FileList = fileList };
+            await Send(packet);
         } 
         else
         {
@@ -142,10 +146,13 @@ internal class Client : IHostedService, IDisposable
                     await HandleConnectResp();
                     break;
                 case Command.Init_Resp:
-                    await HandleInitResp(packet);
+                    await HandleInitSyncResp(packet);
                     break;
                 case Command.Download_Resp:
                     await HandleDownloadResp(packet);
+                    break;
+                case Command.Sync_Resp:
+                    await HandleInitSyncResp(packet);
                     break;
             }
         }
@@ -163,7 +170,7 @@ internal class Client : IHostedService, IDisposable
         await Send(packet);
     }
 
-    private async Task HandleInitResp(Packet packet)
+    private async Task HandleInitSyncResp(Packet packet)
     {
         downloadList = packet.FileList.Except(GetFileNames()).ToList();
         uploadList = packet.FileList.Except(downloadList).ToList();
@@ -174,7 +181,7 @@ internal class Client : IHostedService, IDisposable
         }
         else
         {
-            await HandleUploads(uploadList);
+            await HandleUploads();
         }
     }
 
@@ -206,9 +213,9 @@ internal class Client : IHostedService, IDisposable
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
 
-    private async Task HandleUploads(List<string> uploadFiles)
+    private async Task HandleUploads()
     {
-        foreach (var file in uploadFiles)
+        foreach (var file in uploadList.ToList())
         {
             var path = Path.Combine(_config.ClientFolder, file);
             long position = 0;
@@ -249,8 +256,9 @@ internal class Client : IHostedService, IDisposable
                     await Send(packet);
                 }
             }
+            uploadList.Remove(file);
         }
-        initialUploadCompleted = true;
+        uploadCompleted = true;
     }
 
     private async Task HandleDownloadResp(Packet packet)
@@ -272,7 +280,7 @@ internal class Client : IHostedService, IDisposable
             {
                 _logger.LogInformation("Done with downloading, starting uploading");
                 downloadList.Remove(packet.File.Name);
-                HandleUploads(uploadList);
+                HandleUploads();
             }
             else
             {
