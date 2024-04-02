@@ -75,7 +75,8 @@ internal class Client : IHostedService, IDisposable
             uploadCompleted = false;
             _logger.LogInformation("Syncing client with server");
             var fileList = GetFileNames();
-            var packet = new Packet() { Command = Command.Sync, FileList = fileList };
+            var editedFiles = GetEditedFileNames();
+            var packet = new Packet() { Command = Command.Sync, FileList = fileList, EditedFiles = editedFiles };
             await Send(packet);
         } 
         else
@@ -198,6 +199,51 @@ internal class Client : IHostedService, IDisposable
         return fileNames;
     }
 
+
+    private List<string> GetEditedFileNames()
+    {
+        var editedFiles = new List<string>();
+        var oldFiles = Directory.GetFiles(Path.Combine(_config.ClientFolder, "__oldFiles__"));
+        var currentFiles = Directory.GetFiles(_config.ClientFolder);
+
+        foreach (var file in oldFiles)
+        {
+            var matchingCurrentFile = currentFiles.FirstOrDefault(file);
+            var equalFiles = CompareFiles(file, matchingCurrentFile);
+            if (!equalFiles)
+            {
+                editedFiles.Add(file);
+            }
+        }
+
+        return editedFiles;
+    }
+
+    private bool CompareFiles(string file1Path, string file2Path)
+    {
+        var file1Size = new FileInfo(file1Path).Length;
+        var file2Size = new FileInfo(file2Path).Length;
+
+        if (file1Size != file2Size)
+        {
+            return false;
+        }
+
+        using var fs1 = new FileStream(file1Path, FileMode.Open, FileAccess.Read);
+        using var fs2 = new FileStream(file2Path, FileMode.Open, FileAccess.Read);
+        int file1byte;
+        int file2byte;
+
+        do
+        {
+            file1byte = fs1.ReadByte();
+            file2byte = fs2.ReadByte();
+        }
+        while ((file1byte == file2byte) && (file1byte != -1));
+
+        return (file1byte - file2byte) == 0;
+    }
+
     private async Task Send(Packet packet)
     {
         var packetBytes = packet.ToByteArray();
@@ -228,33 +274,31 @@ internal class Client : IHostedService, IDisposable
                 }
 
                 using MemoryStream memoryStream = new MemoryStream();
-                using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+                using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
+
+                while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
                 {
+                    fileStream.Seek(position, SeekOrigin.Begin);
+                    byte[] buffer = new byte[4096];
+                    int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
+                    memoryStream.Write(buffer, 0, bytesRead);
+                    position += bytesRead;
 
-                    while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
+                    if(bytesRead == 0)
                     {
-                        fileStream.Seek(position, SeekOrigin.Begin);
-                        byte[] buffer = new byte[4096];
-                        int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
-                        memoryStream.Write(buffer, 0, bytesRead);
-                        position += bytesRead;
-
-                        if(bytesRead == 0)
-                        {
-                            break;
-                        }
+                        break;
                     }
-
-                    var fileToSend = new File()
-                    {
-                        Name = file,
-                        Content = Convert.ToBase64String(memoryStream.ToArray()),
-                        Size = new FileInfo(path).Length,
-                    };
-
-                    var packet = new Packet() { Command = Command.Upload, File = fileToSend };
-                    await Send(packet);
                 }
+
+                var fileToSend = new File()
+                {
+                    Name = file,
+                    Content = Convert.ToBase64String(memoryStream.ToArray()),
+                    Size = new FileInfo(path).Length,
+                };
+
+                var packet = new Packet() { Command = Command.Upload, File = fileToSend };
+                await Send(packet);
             }
             uploadList.Remove(file);
         }

@@ -9,6 +9,7 @@ internal class Packet
     public File? File { get; set; }
     public int TotalNumberOfFiles { get; set; }
     public List<string> FileList { get; set; } = new List<string>();
+    public List<string> EditedFiles { get; set; } = new List<string>();
 
     public byte[] ToByteArray()
     {
