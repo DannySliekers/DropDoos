@@ -37,6 +37,7 @@ public class PacketManager : IPacketManager
     private Packet HandleSyncPacket(Packet packet)
     {
         var fileList = PrepareFileList(packet.FileList);
+        fileList = fileList.Concat(packet.EditedFiles).ToList();
         var response = new Packet() { Command = Command.Sync_Resp, FileList = fileList };
         return response;
     }

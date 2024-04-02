@@ -8,6 +8,7 @@ public class Packet
     public required Command Command { get; set; }
     public File? File { get; set; }
     public List<string> FileList { get; set; } = new List<string>();
+    public List<string> EditedFiles { get; set; } = new List<string>();
 
 
     public byte[] ToByteArray()

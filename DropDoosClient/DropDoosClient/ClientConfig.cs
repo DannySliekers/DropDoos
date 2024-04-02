@@ -1,6 +1,7 @@
 ﻿namespace DropDoosClient;
 
-internal class PathOptions
+internal class ClientConfig
 {
     public required string ClientFolder { get; set; }
+    public required TimeSpan SyncRate { get; set; }
 }

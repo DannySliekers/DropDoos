@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.IO;
 using File = DropDoosServer.Data.File;
 
 namespace DropDoosServer.Managers;
@@ -17,6 +18,11 @@ public class FileManager : IFileManager
 
     public async Task UploadFile(File file)
     {
+        if(file.Position == 0)
+        {
+            System.IO.File.Delete(Path.Combine(_config.ServerFolder, file.Name));
+        }
+
         try
         {
             var path = Path.Combine(_config.ServerFolder, file.Name);

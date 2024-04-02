@@ -12,7 +12,7 @@ namespace DropDoosClient;
 internal class Client : IHostedService, IDisposable
 {
     private readonly ILogger<Client> _logger;
-    private readonly PathOptions _config;
+    private readonly ClientConfig _config;
     private readonly Socket _client;
     private readonly IPEndPoint _endPoint;
     private Timer? _timer;
@@ -20,7 +20,7 @@ internal class Client : IHostedService, IDisposable
     private List<string> uploadList;
     private bool uploadCompleted;
 
-    public Client(IOptions<PathOptions> config, ILogger<Client> logger)
+    public Client(IOptions<ClientConfig> config, ILogger<Client> logger)
     {
         _logger = logger;
         _endPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
@@ -35,7 +35,7 @@ internal class Client : IHostedService, IDisposable
     {
         _logger.LogInformation("Starting client");
         CreateOldFileMap();
-        _timer = new Timer(Sync, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+        _timer = new Timer(Sync, null, TimeSpan.FromSeconds(60), _config.SyncRate);
         await _client.ConnectAsync(_endPoint);
 
         Packet connect = new() { Command = Command.Connect };
@@ -175,6 +175,8 @@ internal class Client : IHostedService, IDisposable
     {
         downloadList = packet.FileList.Except(GetFileNames()).ToList();
         uploadList = packet.FileList.Except(downloadList).ToList();
+        uploadList = uploadList.Concat(packet.EditedFiles).ToList();
+
         if (downloadList.Count > 0)
         {
             var downloadPacket = new Packet() { Command = Command.Download, File = new File() { Name = downloadList.First(), Position = 0 } };
@@ -208,11 +210,12 @@ internal class Client : IHostedService, IDisposable
 
         foreach (var file in oldFiles)
         {
-            var matchingCurrentFile = currentFiles.FirstOrDefault(file);
+            var fileName = Path.GetFileName(file);
+            var matchingCurrentFile = currentFiles.FirstOrDefault(currentFile => Path.GetFileName(currentFile) == fileName);
             var equalFiles = CompareFiles(file, matchingCurrentFile);
             if (!equalFiles)
             {
-                editedFiles.Add(file);
+                editedFiles.Add(fileName);
             }
         }
 
@@ -268,9 +271,15 @@ internal class Client : IHostedService, IDisposable
             var fileSize = new FileInfo(path).Length;
             while (position <= fileSize)
             {
+                var newFile = false;
+
                 if (position == fileSize)
                 {
                     break;
+                }
+                else if (position == 0)
+                {
+                    newFile = true;
                 }
 
                 using MemoryStream memoryStream = new MemoryStream();
@@ -295,6 +304,7 @@ internal class Client : IHostedService, IDisposable
                     Name = file,
                     Content = Convert.ToBase64String(memoryStream.ToArray()),
                     Size = new FileInfo(path).Length,
+                    Position = newFile ? 0 : position
                 };
 
                 var packet = new Packet() { Command = Command.Upload, File = fileToSend };
