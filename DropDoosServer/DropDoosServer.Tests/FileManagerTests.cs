@@ -17,14 +17,15 @@ public class FileManagerTests
     {
         var options = Options.Create(new PathConfig() { ServerFolder = "" });
         var logger = Substitute.For<ILogger<IFileManager>>();
-        fileManager = new FileManager(options, logger);
+        var clientManager = Substitute.For<IClientManager>();
+        fileManager = new FileManager(clientManager, options, logger);
     }
 
     [TestMethod]
     public void TestGetFile()
     {
 
-        var file = fileManager.GetFile("test.txt", 0);
+        var file = fileManager.GetFile("test.txt", 0, Guid.NewGuid());
         Assert.AreEqual(file.Name, "test.txt");
         Assert.AreEqual(file.Content, "aGFoYQ==");
         Assert.AreEqual(file.Size, 4);
@@ -48,8 +49,8 @@ public class FileManagerTests
             Content = "dGVzdA=="
         };
 
-        fileManager.UploadFile(file);
-        var addedFile = fileManager.GetFile("testfile.txt", 0);
+        fileManager.UploadFile(file, Guid.NewGuid());
+        var addedFile = fileManager.GetFile("testfile.txt", 0, Guid.NewGuid());
         Assert.AreEqual(addedFile.Name, "testfile.txt");
         Assert.AreEqual(addedFile.Content, "dGVzdA==");
     }

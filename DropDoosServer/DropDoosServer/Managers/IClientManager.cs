@@ -5,5 +5,5 @@ public interface IClientManager
 
     public Guid ConnectClient();
     public List<Guid> GetClients();
-    public void Disconnectclient(Guid clientId);
+    public void DisconnectClient(Guid clientId);
 }

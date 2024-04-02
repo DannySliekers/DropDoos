@@ -31,16 +31,25 @@ public class PacketManager : IPacketManager
                 return HandleUploadPacket(packet).Result;
             case Command.Sync:
                 return HandleSyncPacket(packet);
+            case Command.Disconnect:
+                return HandleDisconnect(packet);
             default:
                 return null;
         }
     }
 
+    private Packet HandleDisconnect(Packet packet)
+    {
+        _clientManager.DisconnectClient(packet.ClientId);
+        var response = new Packet() { Command = Command.Disconnect_Resp };
+        return response;
+    }
+
     private Packet HandleSyncPacket(Packet packet)
     {
         var fileList = PrepareFileList(packet.FileList);
-        var serverEditedFiles = _fileManager.GetServerEditedFiles();
-        var response = new Packet() { Command = Command.Sync_Resp, FileList = fileList, ClientEditedFiles = packet.ClientEditedFiles, ServerEditedFiles =  };
+        var serverEditedFiles = _fileManager.GetServerEditedFilesForClient(packet.ClientId);
+        var response = new Packet() { Command = Command.Sync_Resp, FileList = fileList, ClientEditedFiles = packet.ClientEditedFiles, ServerEditedFiles = serverEditedFiles };
         return response;
     }
 
@@ -61,14 +70,14 @@ public class PacketManager : IPacketManager
 
     private Packet HandleDownloadPacket(Packet packet)
     {
-        var file = _fileManager.GetFile(packet.File.Name, packet.File.Position);
+        var file = _fileManager.GetFile(packet.File.Name, packet.File.Position, packet.ClientId);
         var response = new Packet() { Command = Command.Download_Resp, File = file };
         return response;
     }
 
     private async Task<Packet> HandleUploadPacket(Packet packet)
     {
-        await _fileManager.UploadFile(packet.File);
+        await _fileManager.UploadFile(packet.File, packet.ClientId);
         var response = new Packet() { Command = Command.Upload_Resp };
         return response;
     }

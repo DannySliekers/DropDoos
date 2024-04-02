@@ -6,23 +6,23 @@ namespace DropDoosServer.Managers;
 
 public class FileManager : IFileManager
 {
+    private readonly IClientManager _clientManager;
     private readonly PathConfig _config;
     private readonly ILogger<IFileManager> _logger;
+    private readonly Dictionary<Guid, List<string>> _serverEditedFiles;
 
-    public FileManager(IOptions<PathConfig> config, ILogger<IFileManager> logger)
+    public FileManager(IClientManager clientManager, IOptions<PathConfig> config, ILogger<IFileManager> logger)
     {
+        _clientManager = clientManager;
         _config = config.Value;
         _logger = logger;
+        _serverEditedFiles = new Dictionary<Guid, List<string>>();
     }
 
-    public async Task UploadFile(File file)
+    public async Task UploadFile(File file, Guid clientId)
     {
         var filePath = Path.Combine(_config.ServerFolder, file.Name);
-
-        if (file.Position == 0 && System.IO.File.Exists(filePath))
-        {
-            System.IO.File.Delete(filePath);
-        }
+        ManageServerEditedFiles(file, clientId, filePath);
 
         try
         {
@@ -49,8 +49,10 @@ public class FileManager : IFileManager
         return fileNames;
     }
 
-    public File GetFile(string fileName, long position)
+    public File GetFile(string fileName, long position, Guid clientId)
     {
+        RemoveEditedFileForClient(clientId, fileName);
+
         var path = Path.Combine(_config.ServerFolder, fileName);
         using MemoryStream memoryStream = new MemoryStream();
         using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
@@ -78,5 +80,48 @@ public class FileManager : IFileManager
         };
 
         return fileToSend;
+    }
+
+    public List<string> GetServerEditedFilesForClient(Guid clientId)
+    {
+        if(_serverEditedFiles.TryGetValue(clientId, out var serverEditedFiles))
+        {
+            return serverEditedFiles;
+        } else
+        {
+            return new List<string>();
+        }
+    }
+
+    private void RemoveEditedFileForClient(Guid clientId, string fileName)
+    {
+        if (_serverEditedFiles.TryGetValue(clientId, out var clientSpecificEditedFiles))
+        {
+            if (clientSpecificEditedFiles != null && clientSpecificEditedFiles.Contains(fileName))
+            {
+                _serverEditedFiles[clientId].Remove(fileName);
+            }
+        }
+    }
+
+    private void ManageServerEditedFiles(File file, Guid clientId, string filePath)
+    {
+        if (file.Position == 0 && System.IO.File.Exists(filePath))
+        {
+            System.IO.File.Delete(filePath);
+            var connectedClients = _clientManager.GetClients();
+            foreach (var client in connectedClients)
+            {
+                if (!_serverEditedFiles.ContainsKey(client))
+                {
+                    _serverEditedFiles.Add(client, new List<string>());
+                }
+
+                if (client != clientId)
+                {
+                    _serverEditedFiles[client].Add(file.Name);
+                }
+            }
+        }
     }
 }

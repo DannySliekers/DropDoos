@@ -21,7 +21,7 @@ public class ClientManager : IClientManager
         return _clients;
     }
 
-    public void Disconnectclient(Guid clientId)
+    public void DisconnectClient(Guid clientId)
     {
         _clients.Remove(clientId);
     }

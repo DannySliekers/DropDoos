@@ -19,6 +19,8 @@ internal class Client : IHostedService, IDisposable
     private List<string> downloadList;
     private List<string> uploadList;
     private bool uploadCompleted;
+    private Guid clientId;
+    private bool disconnectResponseReceived;
 
     public Client(IOptions<ClientConfig> config, ILogger<Client> logger)
     {
@@ -29,6 +31,7 @@ internal class Client : IHostedService, IDisposable
         downloadList = new List<string>();
         uploadList = new List<string>();
         uploadCompleted = false;
+        disconnectResponseReceived = false;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -77,7 +80,7 @@ internal class Client : IHostedService, IDisposable
             _logger.LogInformation("Syncing client with server");
             var fileList = GetFileNames();
             var editedFiles = GetEditedFileNames();
-            var packet = new Packet() { Command = Command.Sync, FileList = fileList, ClientEditedFiles = editedFiles };
+            var packet = new Packet() { Command = Command.Sync, ClientId = clientId, FileList = fileList, ClientEditedFiles = editedFiles };
             await Send(packet);
         } 
         else
@@ -145,7 +148,7 @@ internal class Client : IHostedService, IDisposable
             switch (packet.Command)
             {
                 case Command.Connect_Resp:
-                    await HandleConnectResp();
+                    await HandleConnectResp(packet);
                     break;
                 case Command.Init_Resp:
                     await HandleInitSyncResp(packet);
@@ -156,6 +159,9 @@ internal class Client : IHostedService, IDisposable
                 case Command.Sync_Resp:
                     await HandleInitSyncResp(packet);
                     break;
+                case Command.Disconnect_Resp:
+                    disconnectResponseReceived = true;
+                    break;
             }
         }
         catch (Exception ex)
@@ -165,11 +171,12 @@ internal class Client : IHostedService, IDisposable
 
     }
 
-    private async Task HandleConnectResp()
+    private async Task HandleConnectResp(Packet packet)
     {
+        clientId = packet.ClientId;
         var fileList = GetFileNames();
-        var packet = new Packet() { Command = Command.Init, FileList = fileList };
-        await Send(packet);
+        var init = new Packet() { Command = Command.Init, FileList = fileList };
+        await Send(init);
     }
 
     private async Task HandleInitSyncResp(Packet packet)
@@ -182,7 +189,8 @@ internal class Client : IHostedService, IDisposable
 
         if (downloadList.Count > 0)
         {
-            var downloadPacket = new Packet() { Command = Command.Download, File = new File() { Name = downloadList.First(), Position = 0 } };
+            DeleteRedownloadingFile(downloadList.First());
+            var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() { Name = downloadList.First(), Position = 0 } };
             await Send(downloadPacket);
         }
         else
@@ -216,13 +224,23 @@ internal class Client : IHostedService, IDisposable
             var fileName = Path.GetFileName(file);
             var matchingCurrentFile = currentFiles.FirstOrDefault(currentFile => Path.GetFileName(currentFile) == fileName);
             var equalFiles = CompareFiles(file, matchingCurrentFile);
+            
             if (!equalFiles)
             {
                 editedFiles.Add(fileName);
             }
+
+            BackupFile(file, matchingCurrentFile);
         }
 
+
         return editedFiles;
+    }
+
+    private void BackupFile(string oldFilePath, string currentFilePath)
+    {
+        System.IO.File.Delete(oldFilePath);
+        System.IO.File.Copy(currentFilePath, oldFilePath);
     }
 
     private bool CompareFiles(string file1Path, string file2Path)
@@ -310,7 +328,7 @@ internal class Client : IHostedService, IDisposable
                     Position = newFile ? 0 : position
                 };
 
-                var packet = new Packet() { Command = Command.Upload, File = fileToSend };
+                var packet = new Packet() { Command = Command.Upload, ClientId = clientId, File = fileToSend };
                 await Send(packet);
             }
             uploadList.Remove(file);
@@ -330,19 +348,22 @@ internal class Client : IHostedService, IDisposable
 
             if (actualSize != packet.File.Size)
             {
-                var downloadPacket = new Packet() { Command = Command.Download, File = new File() {Name = packet.File.Name, Position = actualSize } };
+                var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() {Name = packet.File.Name, Position = actualSize } };
                 await Send(downloadPacket);
             } 
             else if (downloadList.Count == 1)
             {
-                _logger.LogInformation("Done with downloading, starting uploading");
+                BackupFile(Path.Combine(_config.ClientFolder, "__oldFiles__", packet.File.Name), path);
                 downloadList.Remove(packet.File.Name);
+                _logger.LogInformation("Done with downloading, starting uploading");
                 HandleUploads();
             }
             else
             {
+                BackupFile(Path.Combine(_config.ClientFolder, "__oldFiles__", packet.File.Name), path);
                 downloadList.Remove(packet.File.Name);
-                var downloadPacket = new Packet() { Command = Command.Download, File = new File() { Name = downloadList.First(), Position = 0 } };
+                DeleteRedownloadingFile(downloadList.First());
+                var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() { Name = downloadList.First(), Position = 0 } };
                 await Send(downloadPacket);
             }
         }
@@ -352,12 +373,32 @@ internal class Client : IHostedService, IDisposable
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    private void DeleteRedownloadingFile(string fileName)
     {
-        _client.Shutdown(SocketShutdown.Both);
-        _client.Dispose();
-        _timer?.Change(Timeout.Infinite, 0);
-        return Task.CompletedTask;
+        var path = Path.Combine(_config.ClientFolder, fileName);
+
+        if (System.IO.File.Exists(path))
+        {
+            System.IO.File.Delete(path);
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("test");
+        var disconnect = new Packet() { Command = Command.Disconnect, ClientId = clientId };
+        await Send(disconnect);
+        var canShutdown = false;
+        while (!canShutdown)
+        {
+            if (disconnectResponseReceived)
+            {
+                _client.Shutdown(SocketShutdown.Both);
+                _client.Dispose();
+                _timer?.Change(Timeout.Infinite, 0);
+                canShutdown = true;
+            }
+        }
     }
 
     public void Dispose()

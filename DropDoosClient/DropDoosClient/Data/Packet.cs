@@ -6,6 +6,7 @@ namespace DropDoosClient.Data;
 internal class Packet
 {
     public required Command Command { get; set; }
+    public Guid ClientId { get; set; }
     public File? File { get; set; }
     public int TotalNumberOfFiles { get; set; }
     public List<string> FileList { get; set; } = new List<string>();

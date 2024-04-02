@@ -9,5 +9,7 @@
     Download = 7,
     Download_Resp = 8,
     Upload = 9,
-    Upload_Resp = 10
+    Upload_Resp = 10,
+    Disconnect = 11,
+    Disconnect_Resp = 12
 }
