@@ -7,4 +7,5 @@ public interface IFileManager
     Task UploadFile(File file);
     List<string> GetFileNames();
     File GetFile(string fileName, long position);
+    List<string> GetServerEditedFiles();
 }

@@ -7,11 +7,13 @@ public class PacketManager : IPacketManager
 {
     private readonly ILogger<IFileManager> _logger;
     private readonly IFileManager _fileManager;
+    private readonly IClientManager _clientManager;
 
-    public PacketManager(IFileManager fileManager, ILogger<IFileManager> logger)
+    public PacketManager(IFileManager fileManager, ILogger<IFileManager> logger, IClientManager clientManager)
     {
         _logger = logger;
         _fileManager = fileManager;
+        _clientManager = clientManager;
     }
 
     public Packet? HandlePacket(Packet packet)
@@ -37,8 +39,8 @@ public class PacketManager : IPacketManager
     private Packet HandleSyncPacket(Packet packet)
     {
         var fileList = PrepareFileList(packet.FileList);
-        fileList = fileList.Concat(packet.EditedFiles).ToList();
-        var response = new Packet() { Command = Command.Sync_Resp, FileList = fileList };
+        var serverEditedFiles = _fileManager.GetServerEditedFiles();
+        var response = new Packet() { Command = Command.Sync_Resp, FileList = fileList, ClientEditedFiles = packet.ClientEditedFiles, ServerEditedFiles =  };
         return response;
     }
 
@@ -51,7 +53,8 @@ public class PacketManager : IPacketManager
 
     private Packet HandleConnectPacket()
     {
-        Packet response = new() { Command = Command.Connect_Resp };
+        var clientId = _clientManager.ConnectClient();
+        Packet response = new() { Command = Command.Connect_Resp, ClientId = clientId };
         _logger.LogInformation("Sending {command} to client", response.Command);
         return response;
     }

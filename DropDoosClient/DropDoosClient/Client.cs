@@ -55,6 +55,7 @@ internal class Client : IHostedService, IDisposable
     {
         _logger.LogInformation("Creating backups");
         var oldFilesPath = _config.ClientFolder + "\\__oldFiles__";
+        Directory.Delete(oldFilesPath, true);
         Directory.CreateDirectory(oldFilesPath);
         var currentFiles = Directory.GetFiles(_config.ClientFolder);
 
@@ -76,7 +77,7 @@ internal class Client : IHostedService, IDisposable
             _logger.LogInformation("Syncing client with server");
             var fileList = GetFileNames();
             var editedFiles = GetEditedFileNames();
-            var packet = new Packet() { Command = Command.Sync, FileList = fileList, EditedFiles = editedFiles };
+            var packet = new Packet() { Command = Command.Sync, FileList = fileList, ClientEditedFiles = editedFiles };
             await Send(packet);
         } 
         else
@@ -175,7 +176,9 @@ internal class Client : IHostedService, IDisposable
     {
         downloadList = packet.FileList.Except(GetFileNames()).ToList();
         uploadList = packet.FileList.Except(downloadList).ToList();
-        uploadList = uploadList.Concat(packet.EditedFiles).ToList();
+        uploadList = uploadList.Concat(packet.ClientEditedFiles).ToList();
+        downloadList = downloadList.Concat(packet.ServerEditedFiles).ToList();
+
 
         if (downloadList.Count > 0)
         {
