@@ -28,7 +28,7 @@ public class PacketManager : IPacketManager
             case Command.Download:
                 return HandleDownloadPacket(packet);
             case Command.Upload:
-                return HandleUploadPacket(packet).Result;
+                return HandleUploadPacket(packet);
             case Command.Sync:
                 return HandleSyncPacket(packet);
             case Command.Disconnect:
@@ -75,10 +75,10 @@ public class PacketManager : IPacketManager
         return response;
     }
 
-    private async Task<Packet> HandleUploadPacket(Packet packet)
+    private Packet HandleUploadPacket(Packet packet)
     {
-        await _fileManager.UploadFile(packet.File, packet.ClientId);
-        var response = new Packet() { Command = Command.Upload_Resp };
+        var uploadedFile = _fileManager.UploadFile(packet.File, packet.ClientId).Result;
+        var response = new Packet() { Command = Command.Upload_Resp, File = uploadedFile };
         return response;
     }
 

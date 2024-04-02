@@ -6,6 +6,8 @@ using System.Net;
 using System.Text;
 using Microsoft.Extensions.Options;
 using File = DropDoosClient.Data.File;
+using System.IO;
+using System.Collections.Concurrent;
 
 namespace DropDoosClient;
 
@@ -21,6 +23,7 @@ internal class Client : IHostedService, IDisposable
     private bool uploadCompleted;
     private Guid clientId;
     private bool disconnectResponseReceived;
+    private readonly ConcurrentQueue<string> _fileQueue;
 
     public Client(IOptions<ClientConfig> config, ILogger<Client> logger)
     {
@@ -32,6 +35,7 @@ internal class Client : IHostedService, IDisposable
         uploadList = new List<string>();
         uploadCompleted = false;
         disconnectResponseReceived = false;
+        _fileQueue = new ConcurrentQueue<string>();
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -156,6 +160,9 @@ internal class Client : IHostedService, IDisposable
                 case Command.Download_Resp:
                     await HandleDownloadResp(packet);
                     break;
+                case Command.Upload_Resp:
+                    await HandleUploadResp(packet);
+                    break;
                 case Command.Sync_Resp:
                     await HandleInitSyncResp(packet);
                     break;
@@ -193,10 +200,32 @@ internal class Client : IHostedService, IDisposable
             var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() { Name = downloadList.First(), Position = 0 } };
             await Send(downloadPacket);
         }
+        else if (uploadList.Count > 0)
+        {
+            await SendNewUploadPacket();
+        } 
         else
         {
-            await HandleUploads();
+            uploadCompleted = true;
         }
+    }
+
+    private async Task SendNewUploadPacket()
+    {
+        var fileSize = new FileInfo(Path.Combine(_config.ClientFolder, uploadList.First())).Length;
+        var uploadPacket = new Packet()
+        {
+            Command = Command.Upload,
+            ClientId = clientId,
+            File = new File()
+            {
+                Name = uploadList.First(),
+                Position = 0,
+                Size = fileSize
+            }
+        };
+
+        await Send(uploadPacket);
     }
 
     private List<string> GetFileNames()
@@ -283,57 +312,69 @@ internal class Client : IHostedService, IDisposable
         _logger.LogInformation("Finished sending: {command}", packet.Command);
     }
 
-    private async Task HandleUploads()
+    private async Task HandleUploadResp(Packet packet)
     {
-        foreach (var file in uploadList.ToList())
-        {
-            var path = Path.Combine(_config.ClientFolder, file);
-            long position = 0;
-            var fileSize = new FileInfo(path).Length;
-            while (position <= fileSize)
-            {
-                var newFile = false;
 
-                if (position == fileSize)
+        var path = Path.Combine(_config.ClientFolder, packet.File.Name);
+        using MemoryStream memoryStream = new MemoryStream();
+        using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
+        var fileSize = new FileInfo(path).Length;
+        var position = packet.File.Position;
+
+        if (position != fileSize)
+        {
+            while (memoryStream.Length < 1_000_000 && memoryStream.Length < fileSize)
+            {
+                fileStream.Seek(position, SeekOrigin.Begin);
+                byte[] buffer = new byte[4096];
+                int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
+                memoryStream.Write(buffer, 0, bytesRead);
+                position += bytesRead;
+
+                if (bytesRead == 0)
                 {
                     break;
                 }
-                else if (position == 0)
-                {
-                    newFile = true;
-                }
-
-                using MemoryStream memoryStream = new MemoryStream();
-                using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
-
-                while (memoryStream.Length < 100_000_000 && memoryStream.Length < fileSize)
-                {
-                    fileStream.Seek(position, SeekOrigin.Begin);
-                    byte[] buffer = new byte[4096];
-                    int bytesRead = fileStream.Read(buffer, 0, buffer.Length);
-                    memoryStream.Write(buffer, 0, bytesRead);
-                    position += bytesRead;
-
-                    if(bytesRead == 0)
-                    {
-                        break;
-                    }
-                }
-
-                var fileToSend = new File()
-                {
-                    Name = file,
-                    Content = Convert.ToBase64String(memoryStream.ToArray()),
-                    Size = new FileInfo(path).Length,
-                    Position = newFile ? 0 : position
-                };
-
-                var packet = new Packet() { Command = Command.Upload, ClientId = clientId, File = fileToSend };
-                await Send(packet);
             }
-            uploadList.Remove(file);
+
+            var fileToSend = new File()
+            {
+                Name = packet.File.Name,
+                Content = Convert.ToBase64String(memoryStream.ToArray()),
+                Size = new FileInfo(path).Length,
+                Position = position
+            };
+
+            var uploadPacket = new Packet() { Command = Command.Upload, ClientId = clientId, File = fileToSend };
+            await Send(uploadPacket);
+        } 
+        else if (uploadList.Count == 1)
+        {
+            uploadList.Remove(packet.File.Name);
+            uploadCompleted = true;
         }
-        uploadCompleted = true;
+        else
+        {
+            uploadList.Remove(packet.File.Name);
+            await SendNewUploadPacket();
+        }
+    }
+
+    private async Task FileWriter(string path, long fileSize)
+    {
+        using FileStream fs = new FileStream(path, FileMode.Append);
+
+        while(new FileInfo(path).Length < fileSize)
+        {
+            if (_fileQueue.TryDequeue(out var base64Data))
+            {
+                var data = Convert.FromBase64String(base64Data);
+                await fs.WriteAsync(data, 0, data.Length);
+                fs.Flush();
+            }
+        }
+
+        BackupFile(Path.Combine(_config.ClientFolder, "__oldFiles__", Path.GetFileName(path)), path);
     }
 
     private async Task HandleDownloadResp(Packet packet)
@@ -341,26 +382,36 @@ internal class Client : IHostedService, IDisposable
         try
         {
             var path = Path.Combine(_config.ClientFolder, packet.File.Name);
-            using FileStream fs = new FileStream(path, FileMode.Append);
-            var data = Convert.FromBase64String(packet.File.Content);
-            await fs.WriteAsync(data, 0, data.Length);
-            var actualSize = new FileInfo(path).Length;
 
-            if (actualSize != packet.File.Size)
+            if (!System.IO.File.Exists(path))
             {
-                var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() {Name = packet.File.Name, Position = actualSize } };
+                Task.Run(() => FileWriter(path, packet.File.Size));
+            }
+
+            _fileQueue.Enqueue(packet.File.Content);
+
+            if (packet.File.Position != packet.File.Size)
+            {
+                var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() {Name = packet.File.Name, Position = packet.File.Position } };
                 await Send(downloadPacket);
             } 
             else if (downloadList.Count == 1)
             {
-                BackupFile(Path.Combine(_config.ClientFolder, "__oldFiles__", packet.File.Name), path);
                 downloadList.Remove(packet.File.Name);
                 _logger.LogInformation("Done with downloading, starting uploading");
-                HandleUploads();
+                if (uploadList.Count() > 0)
+                {
+                    var uploadPacket = new Packet() { Command = Command.Upload, ClientId = clientId, File = new File() { Name = uploadList.First(), Position = 0 } };
+                    await Send(uploadPacket);
+                }
+                else
+                {
+                    uploadCompleted = true;
+                }
+
             }
             else
             {
-                BackupFile(Path.Combine(_config.ClientFolder, "__oldFiles__", packet.File.Name), path);
                 downloadList.Remove(packet.File.Name);
                 DeleteRedownloadingFile(downloadList.First());
                 var downloadPacket = new Packet() { Command = Command.Download, ClientId = clientId, File = new File() { Name = downloadList.First(), Position = 0 } };
