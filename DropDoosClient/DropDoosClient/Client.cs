@@ -23,7 +23,7 @@ internal class Client : IHostedService, IDisposable
     public Client(IOptions<ClientConfig> config, ILogger<Client> logger)
     {
         _logger = logger;
-        _endPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
+        _endPoint = new(IPAddress.Parse(config.Value.IpAddress), config.Value.Port);
         _client = new(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         _config = config.Value;
         downloadList = new List<string>();
