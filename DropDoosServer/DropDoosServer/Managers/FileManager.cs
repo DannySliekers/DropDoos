@@ -8,12 +8,12 @@ namespace DropDoosServer.Managers;
 public class FileManager : IFileManager
 {
     private readonly IClientManager _clientManager;
-    private readonly PathConfig _config;
+    private readonly ServerConfig _config;
     private readonly ILogger<IFileManager> _logger;
     private readonly Dictionary<Guid, List<string>> _serverEditedFiles;
     private readonly ConcurrentQueue<string> _fileQueue;
 
-    public FileManager(IClientManager clientManager, IOptions<PathConfig> config, ILogger<IFileManager> logger)
+    public FileManager(IClientManager clientManager, IOptions<ServerConfig> config, ILogger<IFileManager> logger)
     {
         _clientManager = clientManager;
         _config = config.Value;

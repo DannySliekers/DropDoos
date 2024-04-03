@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using DropDoosServer.Managers;
 using DropDoosServer.Data;
 using System.Text;
+using Microsoft.Extensions.Options;
 
 namespace DropDoosServer;
 
@@ -12,17 +13,19 @@ internal class Server : IHostedService
 {
     private readonly ILogger<Server> _logger;
     private readonly IPacketManager _packetManager;
+    private readonly ServerConfig _config;
 
-    public Server(IPacketManager packetManager, ILogger<Server> logger)
+    public Server(IPacketManager packetManager, ILogger<Server> logger, IOptions<ServerConfig> config)
     {
         _logger = logger;
         _packetManager = packetManager;
+        _config = config.Value;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Server starting up");
-        IPEndPoint ipEndPoint = new(IPAddress.Parse("127.0.0.1"), 5252);
+        IPEndPoint ipEndPoint = new(IPAddress.Parse(_config.IpAddress), _config.Port);
 
         using Socket listener = new(ipEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
 
