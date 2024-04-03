@@ -41,7 +41,17 @@ public class FileManager : IFileManager
     public List<string> GetFileNames()
     {
         var fileNames = new List<string>();
-        var fileList = Directory.GetFiles(_config.ServerFolder);
+        string[]? fileList;
+
+        try
+        {
+            fileList = Directory.GetFiles(_config.ServerFolder);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Something went wrong while getting server files", ex);
+            return new List<string>();
+        }
 
         foreach (var file in fileList)
         {
