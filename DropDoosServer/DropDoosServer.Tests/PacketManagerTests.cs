@@ -16,7 +16,8 @@ public class PacketManagerTests
     {
         var fileManagerMock = Substitute.For<IFileManager>();
         var loggerMock = Substitute.For<ILogger<IFileManager>>();
-        _packetManager = new PacketManager(fileManagerMock, loggerMock);
+        var clientManager = Substitute.For<IClientManager>();
+        _packetManager = new PacketManager(fileManagerMock, loggerMock, clientManager);
     }
 
     [TestMethod]
@@ -33,7 +34,8 @@ public class PacketManagerTests
         var fileManagerMock = Substitute.For<IFileManager>();
         fileManagerMock.GetFileNames().Returns(new List<string>());
         var loggerMock = Substitute.For<ILogger<IFileManager>>();
-        _packetManager = new PacketManager(fileManagerMock, loggerMock);
+        var clientManager = Substitute.For<IClientManager>();
+        _packetManager = new PacketManager(fileManagerMock, loggerMock, clientManager);
         var packet = new Packet() { Command = Command.Init, FileList = new List<string>() };
         var response = _packetManager.HandlePacket(packet);
         Assert.AreEqual(response.Command, Command.Init_Resp);
@@ -61,7 +63,8 @@ public class PacketManagerTests
         var fileManagerMock = Substitute.For<IFileManager>();
         fileManagerMock.GetFileNames().Returns(new List<string>());
         var loggerMock = Substitute.For<ILogger<IFileManager>>();
-        _packetManager = new PacketManager(fileManagerMock, loggerMock);
+        var clientManager = Substitute.For<IClientManager>();
+        _packetManager = new PacketManager(fileManagerMock, loggerMock, clientManager);
         var packet = new Packet() { Command = Command.Sync, FileList = new List<string>() { "Test" } };
         var response = _packetManager.HandlePacket(packet);
         Assert.AreEqual(response.Command, Command.Sync_Resp);
