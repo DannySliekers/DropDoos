@@ -33,7 +33,6 @@ internal class Client : IHostedService, IDisposable
         downloadList = new List<string>();
         uploadList = new List<string>();
         uploadCompleted = false;
-        disconnectResponseReceived = false;
         _fileQueue = new ConcurrentQueue<string>();
     }
 
@@ -61,8 +60,17 @@ internal class Client : IHostedService, IDisposable
     {
         _logger.LogInformation("Creating backups");
         var oldFilesPath = Path.Combine(_config.ClientFolder, "__oldFiles__");
-        Directory.Delete(oldFilesPath, true);
-        Directory.CreateDirectory(oldFilesPath);
+
+        if (!Directory.Exists(oldFilesPath))
+        {
+            Directory.CreateDirectory(oldFilesPath);
+        } 
+        else
+        {
+            Directory.Delete(oldFilesPath, true);
+            Directory.CreateDirectory(oldFilesPath);
+        }
+
         var currentFiles = Directory.GetFiles(_config.ClientFolder);
 
         foreach (var file in currentFiles)
@@ -248,14 +256,18 @@ internal class Client : IHostedService, IDisposable
         {
             var fileName = Path.GetFileName(file);
             var matchingCurrentFile = currentFiles.FirstOrDefault(currentFile => Path.GetFileName(currentFile) == fileName);
-            var equalFiles = CompareFiles(file, matchingCurrentFile);
-            
-            if (!equalFiles)
+            if (matchingCurrentFile != null)
             {
-                editedFiles.Add(fileName);
+                var equalFiles = CompareFiles(file, matchingCurrentFile);
+
+                if (!equalFiles)
+                {
+                    editedFiles.Add(fileName);
+                }
+
+                BackupFile(file, matchingCurrentFile);
             }
 
-            BackupFile(file, matchingCurrentFile);
         }
 
 
