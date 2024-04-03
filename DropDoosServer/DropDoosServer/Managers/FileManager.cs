@@ -90,7 +90,7 @@ public class FileManager : IFileManager
         using var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         var fileSize = new FileInfo(path).Length;
 
-        while (memoryStream.Length < 1_000_000 && memoryStream.Length < fileSize)
+        while (memoryStream.Length < _config.PackageSizeInBytes && memoryStream.Length < fileSize)
         {
             fileStream.Seek(position, SeekOrigin.Begin);
             byte[] buffer = new byte[4096];

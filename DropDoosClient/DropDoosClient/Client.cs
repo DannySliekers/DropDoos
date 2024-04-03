@@ -331,7 +331,7 @@ internal class Client : IHostedService, IDisposable
 
         if (position != fileSize)
         {
-            while (memoryStream.Length < 1_000_000 && memoryStream.Length < fileSize)
+            while (memoryStream.Length < _config.PackageSizeInBytes && memoryStream.Length < fileSize)
             {
                 fileStream.Seek(position, SeekOrigin.Begin);
                 byte[] buffer = new byte[4096];
