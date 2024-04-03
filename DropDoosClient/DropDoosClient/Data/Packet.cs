@@ -8,7 +8,6 @@ internal class Packet
     public required Command Command { get; set; }
     public Guid ClientId { get; set; }
     public File? File { get; set; }
-    public int TotalNumberOfFiles { get; set; }
     public List<string> FileList { get; set; } = new List<string>();
     public List<string> ClientEditedFiles { get; set; } = new List<string>();
     public List<string> ServerEditedFiles { get; set; } = new List<string>();

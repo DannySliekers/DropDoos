@@ -22,7 +22,6 @@ internal class Client : IHostedService, IDisposable
     private List<string> uploadList;
     private bool uploadCompleted;
     private Guid clientId;
-    private bool disconnectResponseReceived;
     private readonly ConcurrentQueue<string> _fileQueue;
 
     public Client(IOptions<ClientConfig> config, ILogger<Client> logger)
@@ -165,9 +164,6 @@ internal class Client : IHostedService, IDisposable
                     break;
                 case Command.Sync_Resp:
                     await HandleInitSyncResp(packet);
-                    break;
-                case Command.Disconnect_Resp:
-                    disconnectResponseReceived = true;
                     break;
             }
         }
@@ -434,22 +430,12 @@ internal class Client : IHostedService, IDisposable
         }
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("test");
-        var disconnect = new Packet() { Command = Command.Disconnect, ClientId = clientId };
-        await Send(disconnect);
-        var canShutdown = false;
-        while (!canShutdown)
-        {
-            if (disconnectResponseReceived)
-            {
-                _client.Shutdown(SocketShutdown.Both);
-                _client.Dispose();
-                _timer?.Change(Timeout.Infinite, 0);
-                canShutdown = true;
-            }
-        }
+        _client.Shutdown(SocketShutdown.Both);
+        _client.Dispose();
+        _timer?.Change(Timeout.Infinite, 0);
+        return Task.CompletedTask;
     }
 
     public void Dispose()

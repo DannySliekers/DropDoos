@@ -15,7 +15,7 @@ public class FileManagerTests
     [TestInitialize]
     public void Initialize()
     {
-        var options = Options.Create(new ServerConfig() { ServerFolder = "", IpAddress = "", Port = 0});
+        var options = Options.Create(new ServerConfig() { ServerFolder = "D:/DropDoos/TestMap", IpAddress = "", Port = 0});
         var logger = Substitute.For<ILogger<IFileManager>>();
         var clientManager = Substitute.For<IClientManager>();
         fileManager = new FileManager(clientManager, options, logger);
@@ -39,18 +39,21 @@ public class FileManagerTests
     }
 
     [TestMethod]
-    public void TestUploadFile()
+    public async Task TestUploadFile()
     {
-        System.IO.File.Delete("D:\\DropDoos\\TestMap\\testfile.txt");
+        if (System.IO.File.Exists("D:\\DropDoos\\TestMap\\testfile.txt"))
+        {
+            System.IO.File.Delete("D:\\DropDoos\\TestMap\\testfile.txt");
+        }
 
         var file = new File()
         {
             Name = "testfile.txt",
-            Content = "dGVzdA=="
+            Content = "dGVzdA==",
+            Position = 0,
         };
 
-        fileManager.UploadFile(file, Guid.NewGuid());
-        var addedFile = fileManager.GetFile("testfile.txt", 0, Guid.NewGuid());
+        var addedFile = await fileManager.UploadFile(file, Guid.NewGuid());
         Assert.AreEqual(addedFile.Name, "testfile.txt");
         Assert.AreEqual(addedFile.Content, "dGVzdA==");
     }
