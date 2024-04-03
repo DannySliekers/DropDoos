@@ -15,7 +15,7 @@ public class FileManagerTests
     [TestInitialize]
     public void Initialize()
     {
-        var options = Options.Create(new ServerConfig() { ServerFolder = "" });
+        var options = Options.Create(new ServerConfig() { ServerFolder = "", IpAddress = "", Port = 0});
         var logger = Substitute.For<ILogger<IFileManager>>();
         var clientManager = Substitute.For<IClientManager>();
         fileManager = new FileManager(clientManager, options, logger);

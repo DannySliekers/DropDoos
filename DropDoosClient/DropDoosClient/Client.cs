@@ -61,7 +61,7 @@ internal class Client : IHostedService, IDisposable
     private void CreateOldFileMap()
     {
         _logger.LogInformation("Creating backups");
-        var oldFilesPath = _config.ClientFolder + "\\__oldFiles__";
+        var oldFilesPath = Path.Combine(_config.ClientFolder, "__oldFiles__");
         Directory.Delete(oldFilesPath, true);
         Directory.CreateDirectory(oldFilesPath);
         var currentFiles = Directory.GetFiles(_config.ClientFolder);
