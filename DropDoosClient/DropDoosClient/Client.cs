@@ -104,10 +104,10 @@ internal class Client : IHostedService, IDisposable
     private async Task Receive(CancellationToken cancellationToken)
     {
         using MemoryStream stream = new MemoryStream();
-        var buffer = new byte[4096];
 
         while (!cancellationToken.IsCancellationRequested)
         {
+            var buffer = new byte[4096];
             var bytesReceived = await _client.ReceiveAsync(buffer);
             var eomLength = Encoding.UTF8.GetBytes("||DropProto-EOM||").Length;
             var eomIndex = IndexOfEOM(buffer, eomLength);

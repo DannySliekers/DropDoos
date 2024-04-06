@@ -78,6 +78,7 @@ public class PacketManager : IPacketManager
     private Packet HandleUploadPacket(Packet packet)
     {
         var uploadedFile = _fileManager.UploadFile(packet.File, packet.ClientId).Result;
+        uploadedFile.Content = null;
         var response = new Packet() { Command = Command.Upload_Resp, File = uploadedFile };
         return response;
     }

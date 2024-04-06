@@ -41,10 +41,10 @@ internal class Server : IHostedService
     private async Task Receive(Socket handler, CancellationToken cancellationToken)
     {
         using MemoryStream stream = new MemoryStream();
-        var buffer = new byte[4096];
 
         while (!cancellationToken.IsCancellationRequested) 
         {
+            var buffer = new byte[4096];
             var bytesReceived = await handler.ReceiveAsync(buffer);
             var eomLength = Encoding.UTF8.GetBytes("||DropProto-EOM||").Length;
             var eomIndex = IndexOfEOM(buffer, eomLength);
@@ -52,14 +52,23 @@ internal class Server : IHostedService
             if (eomIndex > 0)
             {
                 stream.Write(buffer[..eomIndex], 0, eomIndex);
-                var packet = Packet.ToPacket(stream.ToArray());
-                var response = _packetManager.HandlePacket(packet);
-                stream.SetLength(0);
-                stream.Write(buffer[(eomIndex + eomLength)..bytesReceived], 0, bytesReceived - (eomIndex + eomLength));
-
-                if (response != null)
+                try
                 {
-                    await Send(handler, response);
+                    var packet = Packet.ToPacket(stream.ToArray());
+                    var response = _packetManager.HandlePacket(packet);
+                    stream.SetLength(0);
+                    _logger.LogInformation(eomIndex.ToString());
+                    _logger.LogInformation(bytesReceived.ToString());
+                    stream.Write(buffer[(eomIndex + eomLength)..bytesReceived], 0, buffer[(eomIndex + eomLength)..bytesReceived].Length);
+
+                    if (response != null)
+                    {
+                        await Send(handler, response);
+                    }
+                } 
+                catch (Exception ex)
+                {
+                     _logger.LogError(ex.ToString());
                 }
             } 
             else if (bytesReceived > 0)
