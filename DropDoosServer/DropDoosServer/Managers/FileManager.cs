@@ -11,7 +11,7 @@ public class FileManager : IFileManager
     private readonly ServerConfig _config;
     private readonly ILogger<IFileManager> _logger;
     private readonly Dictionary<Guid, List<string>> _serverEditedFiles;
-    private readonly ConcurrentQueue<string> _fileQueue;
+    private readonly ConcurrentQueue<byte[]> _fileQueue;
 
     public FileManager(IClientManager clientManager, IOptions<ServerConfig> config, ILogger<IFileManager> logger)
     {
@@ -19,7 +19,7 @@ public class FileManager : IFileManager
         _config = config.Value;
         _logger = logger;
         _serverEditedFiles = new Dictionary<Guid, List<string>>();
-        _fileQueue = new ConcurrentQueue<string>();
+        _fileQueue = new ConcurrentQueue<byte[]>();
     }
 
     public Task<File> UploadFile(File file, Guid clientId)
@@ -107,7 +107,7 @@ public class FileManager : IFileManager
         var fileToSend = new File()
         {
             Name = Path.GetFileName(fileName),
-            Content = Convert.ToBase64String(memoryStream.ToArray()),
+            Content = memoryStream.ToArray(),
             Size = new FileInfo(path).Length,
             Position = position
         };
@@ -164,11 +164,10 @@ public class FileManager : IFileManager
 
         while (new FileInfo(path).Length < fileSize)
         {
-            if (_fileQueue.TryDequeue(out var base64Data))
+            if (_fileQueue.TryDequeue(out var data))
             {
                 try
                 {
-                    var data = Convert.FromBase64String(base64Data);
                     await fs.WriteAsync(data, 0, data.Length);
                     fs.Flush();
                 }

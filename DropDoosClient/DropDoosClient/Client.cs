@@ -22,7 +22,7 @@ internal class Client : IHostedService, IDisposable
     private List<string> uploadList;
     private bool uploadCompleted;
     private Guid clientId;
-    private readonly ConcurrentQueue<string> _fileQueue;
+    private readonly ConcurrentQueue<byte[]> _fileQueue;
 
     public Client(IOptions<ClientConfig> config, ILogger<Client> logger)
     {
@@ -33,7 +33,7 @@ internal class Client : IHostedService, IDisposable
         downloadList = new List<string>();
         uploadList = new List<string>();
         uploadCompleted = false;
-        _fileQueue = new ConcurrentQueue<string>();
+        _fileQueue = new ConcurrentQueue<byte[]>();
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -348,7 +348,7 @@ internal class Client : IHostedService, IDisposable
             var fileToSend = new File()
             {
                 Name = packet.File.Name,
-                Content = Convert.ToBase64String(memoryStream.ToArray()),
+                Content = memoryStream.ToArray(),
                 Size = new FileInfo(path).Length,
                 Position = position
             };
@@ -374,9 +374,8 @@ internal class Client : IHostedService, IDisposable
 
         while(new FileInfo(path).Length < fileSize)
         {
-            if (_fileQueue.TryDequeue(out var base64Data))
+            if (_fileQueue.TryDequeue(out var data))
             {
-                var data = Convert.FromBase64String(base64Data);
                 await fs.WriteAsync(data, 0, data.Length);
                 fs.Flush();
             }
@@ -407,7 +406,7 @@ internal class Client : IHostedService, IDisposable
             {
                 downloadList.Remove(packet.File.Name);
                 _logger.LogInformation("Done with downloading, starting uploading");
-                if (uploadList.Count() > 0)
+                if (uploadList.Count > 0)
                 {
                     var uploadPacket = new Packet() { Command = Command.Upload, ClientId = clientId, File = new File() { Name = uploadList.First(), Position = 0 } };
                     await Send(uploadPacket);
